@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的云端留言板</title>
+    <style>
+        /* 简单的现代化样式 */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px; color: #1f2937; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; }
+        .header { background: #4f46e5; color: white; padding: 20px; text-align: center; }
+        .header h1 { margin: 0; font-size: 1.25rem; }
+        
+        .input-area { padding: 20px; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; }
+        input { flex: 1; padding: 10px 15px; border: 1px solid #d1d5db; border-radius: 6px; outline: none; transition: border-color 0.2s; }
+        input:focus { border-color: #4f46e5; ring: 2px solid #4f46e5; }
+        button { background: #4f46e5; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 500; transition: background 0.2s; white-space: nowrap; }
+        button:hover { background: #4338ca; }
+        button:disabled { background: #9ca3af; cursor: not-allowed; }
+
+        .msg-list { padding: 0; margin: 0; list-style: none; height: 400px; overflow-y: auto; }
+        .msg-item { padding: 15px 20px; border-bottom: 1px solid #f3f4f6; animation: fadeIn 0.3s ease; }
+        .msg-item:last-child { border-bottom: none; }
+        .msg-content { font-size: 1rem; margin-bottom: 4px; word-break: break-all; }
+        .msg-time { font-size: 0.75rem; color: #9ca3af; }
+        
+        .status-bar { text-align: center; padding: 8px; font-size: 0.75rem; color: #6b7280; background: #f9fafb; border-top: 1px solid #e5e7eb; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>🚀 穿墙版留言板</h1>
+    </div>
+    
+    <div class="input-area">
+        <input type="text" id="msgInput" placeholder="说点什么..." autocomplete="off">
+        <button id="sendBtn">发送</button>
+    </div>
+
+    <ul class="msg-list" id="msgList">
+        <li style="text-align:center; padding:20px; color:#999;">正在加载留言...</li>
+    </ul>
+
+    <div class="status-bar" id="statusBar">
+        准备就绪
+    </div>
+</div>
+
+<script>
+    const API_URL = '/api/chat'; // 指向我们刚才写的 chat.js
+    const input = document.getElementById('msgInput');
+    const btn = document.getElementById('sendBtn');
+    const list = document.getElementById('msgList');
+    const status = document.getElementById('statusBar');
+
+    // 1. 加载数据
+    async function loadMessages() {
+        status.innerText = "正在同步...";
+        try {
+            const res = await fetch(API_URL);
+            if (!res.ok) throw new Error("API Error");
+            const data = await res.json();
+            render(data);
+            status.innerText = `上次同步: ${new Date().toLocaleTimeString()}`;
+        } catch (e) {
+            console.warn("同步失败（本地预览环境失败是正常的）:", e);
+            status.innerText = "⚠️ 连接失败 (请确保已部署到 Vercel)";
+        }
+    }
+
+    // 2. 渲染界面
+    function render(messages) {
+        if (messages.length === 0) {
+            list.innerHTML = '<li style="text-align:center; padding:20px; color:#999;">暂无留言，快来抢沙发！</li>';
+            return;
+        }
+        list.innerHTML = messages.map(msg => `
+            <li class="msg-item">
+                <div class="msg-content">${escapeHtml(msg.content)}</div>
+                <div class="msg-time">${msg.time}</div>
+            </li>
+        `).join('');
+    }
+
+    // 3. 发送数据
+    btn.addEventListener('click', async () => {
+        const text = input.value.trim();
+        if (!text) return;
+
+        const originalText = btn.innerText;
+        btn.innerText = "发送中...";
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: text })
+            });
+            
+            if (res.ok) {
+                input.value = '';
+                loadMessages(); // 发送成功后立即刷新
+            } else {
+                alert("发送失败，可能是 Vercel 环境变量未配置");
+            }
+        } catch (e) {
+            alert("网络请求错误");
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
+    });
+
+    // 工具：防 HTML 注入
+    function escapeHtml(text) {
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // 启动：加载数据并设置自动刷新 (每3秒)
+    loadMessages();
+    setInterval(loadMessages, 3000);
+</script>
+
+</body>
+</html>
