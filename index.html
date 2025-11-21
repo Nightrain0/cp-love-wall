@@ -222,6 +222,7 @@
         <div v-else-if="loading" class="text-center py-32 text-pink-300">
             <div class="loading-cat text-4xl mb-4">🍡</div>
             <p class="text-xs font-bold tracking-widest text-slate-300">正在召唤队友...</p>
+            <p v-if="showSlowTip" class="text-[10px] text-slate-400 mt-4 animate-pulse font-bold bg-slate-100 inline-block px-3 py-1 rounded-full">异世界通道有点拥堵，请耐心一点点...</p>
         </div>
         <div v-else-if="!posts.length" class="text-center py-32 text-slate-400">
             <div class="text-6xl mb-4 opacity-50 grayscale">🏝️</div>
@@ -569,7 +570,8 @@
             const loading = ref(true);
             const error = ref('');
             const scrollY = ref(0);
-            const notice = "欢迎来到 CPDD 扩列异世界！这里禁止发布违规信息，要做个可爱的训练师哦~";
+            // 使用 ref 以便动态修改
+            const notice = ref("欢迎来到 CPDD 扩列异世界！这里禁止发布违规信息，要做个可爱的训练师哦~");
 
             const showAuthModal = ref(false);
             const authMode = ref('login');
@@ -577,7 +579,8 @@
             const showProfileModal = ref(false);
             const showInboxModal = ref(false);
             const showChatModal = ref(false);
-            const chatContainer = ref(null); // 新增 ref
+            const chatContainer = ref(null);
+            const showSlowTip = ref(false);
             
             const submitting = ref(false);
             const isAuthing = ref(false);
@@ -606,13 +609,12 @@
 
             // 辅助函数：滚动到底部
             const scrollToBottom = (force = false) => {
-                // 给一点点延迟，确保 DOM 渲染完成（尤其是弹窗刚打开时）
                 setTimeout(() => {
                     const el = chatContainer.value;
                     if (el) {
                         el.scrollTo({
                             top: el.scrollHeight,
-                            behavior: force ? 'auto' : 'smooth' // 打开时瞬间跳转，发消息时平滑滚动
+                            behavior: force ? 'auto' : 'smooth'
                         });
                     }
                 }, 50);
@@ -657,8 +659,6 @@
                 serverMessages.value = [];
                 pendingMessages.value = [];
                 showChatModal.value = true;
-                
-                // 打开时，强制瞬间滚到底部
                 scrollToBottom(true);
 
                 if(chatId) {
@@ -687,20 +687,15 @@
                 if (reqChatId !== currentChatId.value) return;
 
                 const msgs = await res.json();
-                
-                // 检测是否有新消息，如果有，需要滚动
                 const isNewMessage = msgs.length > serverMessages.value.length || 
                                      (msgs.length > 0 && serverMessages.value.length > 0 && msgs[msgs.length-1].id !== serverMessages.value[serverMessages.value.length-1].id);
                 
                 serverMessages.value = msgs;
-                // Filter out pending messages that are now on server
                 pendingMessages.value = pendingMessages.value.filter(p => 
                     !msgs.some(s => s.content === p.content && s.sender === p.sender && Math.abs(p.timestamp - (s.timestamp?s.timestamp._seconds*1000:0)) < 10000)
                 );
 
-                if (isNewMessage) {
-                    scrollToBottom(); // 有新消息自动滚动
-                }
+                if (isNewMessage) scrollToBottom();
             };
 
             const mergedMessages = computed(() => {
@@ -719,8 +714,6 @@
                 const now = Date.now();
                 const tempMsg = { id: now, sender: user.value.username, content: txt, timestamp: now, pending: true };
                 pendingMessages.value.push(tempMsg);
-                
-                // 发送消息后自动滚动
                 scrollToBottom();
 
                 try {
@@ -757,11 +750,49 @@
             watch([filterGame, posts], updateColumns);
             window.onresize = () => { windowWidth.value = window.innerWidth; updateColumns(); };
             window.onscroll = () => scrollY.value = window.scrollY;
-            const fetchPosts = async () => { loading.value = true; error.value = ''; try { const res = await fetch(API); if(!res.ok) throw new Error('连接超时啦'); const data = await res.json(); if(Array.isArray(data)) posts.value = data; else throw new Error('数据格式错误'); } catch(e) { error.value = e.message; posts.value = []; } loading.value = false; };
+            
+            // ★★★ 核心优化：缓存+静默更新机制 ★★★
+            const fetchPosts = async () => { 
+                // 1. 尝试读取缓存 (秒开)
+                const cached = localStorage.getItem('cp_posts_cache');
+                if(cached && posts.value.length === 0) {
+                    try {
+                        posts.value = JSON.parse(cached);
+                        loading.value = false; // 有缓存就先展示，不显示loading
+                        updateColumns();
+                    } catch(e){}
+                }
+
+                // 如果连缓存都没有，才显示loading
+                if(posts.value.length === 0) {
+                    loading.value = true;
+                    // 如果加载超过3秒，显示安抚提示
+                    setTimeout(() => showSlowTip.value = true, 3000);
+                }
+                
+                error.value = ''; 
+                
+                try { 
+                    // 2. 后台静默更新
+                    const res = await fetch(`${API}?t=${Date.now()}`); 
+                    if(!res.ok) throw new Error('连接超时啦'); 
+                    const data = await res.json(); 
+                    if(Array.isArray(data)) {
+                        posts.value = data; // 更新为最新数据
+                        localStorage.setItem('cp_posts_cache', JSON.stringify(data)); // 更新缓存
+                    } else throw new Error('数据格式错误'); 
+                } catch(e) { 
+                    // 只有在连缓存都没有的情况下才报错
+                    if(posts.value.length === 0) error.value = e.message; 
+                    else console.log("静默更新失败", e);
+                } finally {
+                    loading.value = false; 
+                }
+            };
+
             const isLiked = (p) => { if(!p.likedIds) return false; if(user.value) return p.likedIds.includes('user:'+user.value.username); const locals = JSON.parse(localStorage.getItem('cp_likes')||'[]'); return locals.includes(p.id); };
             const handleLike = async (p) => { if(p.liking) return; p.liking = true; const liked = isLiked(p); if(liked) { p.likes--; if(user.value) p.likedIds = p.likedIds.filter(id => id !== 'user:'+user.value.username); else { const ls = JSON.parse(localStorage.getItem('cp_likes')||'[]'); localStorage.setItem('cp_likes', JSON.stringify(ls.filter(id=>id!==p.id))); p.likedIds = []; } } else { p.likes++; if(user.value) { if(!p.likedIds) p.likedIds=[]; p.likedIds.push('user:'+user.value.username); } else { const ls = JSON.parse(localStorage.getItem('cp_likes')||'[]'); ls.push(p.id); localStorage.setItem('cp_likes', JSON.stringify(ls)); if(!p.likedIds) p.likedIds=[]; p.likedIds.push('temp'); } } try { await fetch(`${API}?action=like`, {method:'POST', body:JSON.stringify({id:p.id, user:user.value})}); } catch(e){ p.likes = liked ? p.likes+1 : p.likes-1; } p.liking = false; };
             
-            // 修复：更激进的图片压缩算法
             const compress = (file) => new Promise(resolve => { 
                 const r = new FileReader(); 
                 r.onload = e => { 
@@ -769,7 +800,7 @@
                     img.onload = () => { 
                         const cvs = document.createElement('canvas'); 
                         let w=img.width, h=img.height; 
-                        const MAX = 1280; // 降低最大尺寸
+                        const MAX = 1280; 
                         if(w>MAX){ h*=MAX/w; w=MAX; } 
                         cvs.width=w; cvs.height=h; 
                         const ctx = cvs.getContext('2d'); 
@@ -777,23 +808,10 @@
                         
                         let q = 0.8; 
                         let dataUrl = cvs.toDataURL('image/jpeg', q); 
-                        const LIMIT = 200000; // 限制每张图约200KB
+                        const LIMIT = 200000; 
                         
-                        // 1. 降质量
-                        while(dataUrl.length > LIMIT && q > 0.2) { 
-                            q-=0.1; 
-                            dataUrl = cvs.toDataURL('image/jpeg', q); 
-                        } 
-                        
-                        // 2. 如果还大，强制缩小尺寸
-                        while(dataUrl.length > LIMIT) { 
-                            w*=0.7; h*=0.7; 
-                            cvs.width=w; cvs.height=h; 
-                            ctx.drawImage(img,0,0,w,h); 
-                            dataUrl = cvs.toDataURL('image/jpeg', 0.6);
-                            if(w < 200) break; // 防止缩太小
-                        } 
-                        
+                        while(dataUrl.length > LIMIT && q > 0.2) { q-=0.1; dataUrl = cvs.toDataURL('image/jpeg', q); } 
+                        while(dataUrl.length > LIMIT) { w*=0.7; h*=0.7; cvs.width=w; cvs.height=h; ctx.drawImage(img,0,0,w,h); dataUrl = cvs.toDataURL('image/jpeg', 0.6); if(w < 200) break; } 
                         resolve(dataUrl); 
                     }; 
                     img.src = e.target.result; 
@@ -807,27 +825,17 @@
             const handleAuth = async () => { if(!authForm.value.username) return alert('请输入账号'); if (authMode.value === 'register' && authForm.value.username !== 'admin') { if(authForm.value.username.length < 8) return alert('账号至少8位'); } isAuthing.value = true; try { const res = await fetch(`${API}?action=${authMode.value}`, {method:'POST', body:JSON.stringify(authForm.value)}); const d = await res.json(); if(d.error) alert(d.error); else { user.value = d.user; localStorage.setItem('cp_user', JSON.stringify(d.user)); showAuthModal.value = false; } } catch(e){ alert('网络连接错误'); } isAuthing.value = false; };
             const handleProfileUpdate = async () => { isUpdatingProfile.value = true; try { const payload = { username: user.value.username, user: user.value, ...profileForm.value }; const res = await fetch(`${API}?action=update_profile`, { method:'POST', body:JSON.stringify(payload) }); const d = await res.json(); if(d.success) { user.value = d.user; localStorage.setItem('cp_user', JSON.stringify(d.user)); alert('保存成功'); showProfileModal.value = false; } else { alert(d.error || '保存失败'); } } catch(e) { alert('网络错误'); } isUpdatingProfile.value = false; };
             
-            // 修复：降低总大小限制，避免超过 Firestore 1MB 限制
             const submitPost = async () => { 
                 if(!postForm.value.content) return alert('写点什么吧'); 
                 const totalSize = postForm.value.images.reduce((acc, img) => acc + img.length, 0); 
-                if (totalSize > 800000) return alert('图片总大小超限，请删除一张或换小图重试'); // 限制在 800KB 以内，留出 metadata 空间
-                
+                if (totalSize > 800000) return alert('图片总大小超限，请删除一张或换小图重试'); 
                 submitting.value = true; 
                 try { 
                     const res = await fetch(`${API}?action=create_post`, {method:'POST', body:JSON.stringify({user:user.value, ...postForm.value})}); 
                     const data = await res.json().catch(() => null); 
-                    if(res.ok && data && data.success) { 
-                        showPostModal.value = false; 
-                        postForm.value = {content:'', game:'王者荣耀', requirement:'', images:[]}; 
-                        fetchPosts(); 
-                    } else { 
-                        const msg = data ? (data.error || '未知错误') : `服务器响应异常`; 
-                        alert(`发布失败: ${msg}`); 
-                    } 
-                } catch(e){ 
-                    alert('网络错误'); 
-                } 
+                    if(res.ok && data && data.success) { showPostModal.value = false; postForm.value = {content:'', game:'王者荣耀', requirement:'', images:[]}; fetchPosts(); } 
+                    else { const msg = data ? (data.error || '未知错误') : `服务器响应异常`; alert(`发布失败: ${msg}`); } 
+                } catch(e){ alert('网络错误'); } 
                 submitting.value = false; 
             };
 
@@ -844,11 +852,11 @@
             const scrollToTop = () => window.scrollTo({top:0, behavior:'smooth'});
 
             return {
-                user, loading, error, posts, columns, games, filterGame, notice, scrollY,
+                user, loading, error, posts, columns, games, filterGame, notice, scrollY, showSlowTip,
                 showAuthModal, authMode, authForm, isAuthing, showPostModal, postForm, submitting, preview,
                 showProfileModal, profileForm, isUpdatingProfile, viewingUser, isMyProfile, genderMap, targetMap,
                 showInboxModal, inboxList, showChatModal, chatMessages: mergedMessages, chatTarget, chatInput, totalUnread,
-                chatContainer, // 导出 ref
+                chatContainer,
                 
                 refresh:fetchPosts, handleAuth, handleAvatarUpload, handlePostImageUpload, submitPost,
                 deletePost, isLiked, handleLike, toggleComments, submitComment, deleteComment,
