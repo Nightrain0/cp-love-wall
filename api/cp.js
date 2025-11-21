@@ -1,36 +1,37 @@
 import admin from 'firebase-admin';
 
 // --- 初始化逻辑 ---
+// 增加全局变量防止冷启动多次初始化
 if (!admin.apps.length) {
-    // 增加容错，防止环境变量缺失导致直接 crash
     if (process.env.FIREBASE_CREDENTIALS) {
         try {
             const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
             admin.initializeApp({
                 credential: admin.credential.cert(serviceAccount)
             });
+            console.log("Firebase initialized successfully.");
         } catch (e) {
-            console.error("❌ 私钥解析失败", e);
+            console.error("❌ Firebase init failed:", e);
         }
     } else {
-        console.error("❌ 未找到 FIREBASE_CREDENTIALS 环境变量");
+        console.error("❌ Missing FIREBASE_CREDENTIALS env var.");
     }
 }
 
-// 安全获取 db 实例
-let db;
-try {
-    db = admin.firestore();
-} catch (e) {
-    console.error("Firestore 初始化失败", e);
-}
+// 安全获取 Firestore 实例
+const getDb = () => {
+    try {
+        return admin.firestore();
+    } catch (e) {
+        console.error("Firestore access failed:", e);
+        return null;
+    }
+};
 
-// 简单的密码哈希
 const hashPassword = (pwd) => {
     return Buffer.from(pwd + "cpdd_salt").toString('base64');
 };
 
-// 获取用户唯一标识 (IP 或 用户名)
 const getIdentifier = (req, userBody) => {
     if (userBody && userBody.username) return `user:${userBody.username}`;
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
@@ -38,7 +39,7 @@ const getIdentifier = (req, userBody) => {
 };
 
 export default async function handler(req, res) {
-    // CORS 设置
+    // CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -48,25 +49,21 @@ export default async function handler(req, res) {
         return;
     }
 
-    // ★ 关键修复：如果 db 未初始化（如环境变量缺失），直接返回 500 JSON，避免 crash
+    const db = getDb();
     if (!db) {
-        return res.status(500).json({ error: 'Database connection failed. Check server logs.' });
+        return res.status(500).json({ error: 'Service Unavailable: Database connection failed.' });
     }
 
     try {
         const { action } = req.query;
         const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
 
-        // ==========================================
-        // 1. 鉴权模块 (注册/登录)
-        // ==========================================
-        
+        // --- 鉴权 ---
         if (action === 'register') {
             const { username, password, nickname, avatar } = body;
-            
-            if (!username || username.length < 8) return res.status(400).json({ error: '账号至少要8位哦' });
-            if (!password || password.length < 6) return res.status(400).json({ error: '密码至少设置6位' });
-            if (!nickname) return res.status(400).json({ error: '昵称不能为空' });
+            if (!username || username.length < 8) return res.status(400).json({ error: '账号太短，至少8位' });
+            if (!password || password.length < 6) return res.status(400).json({ error: '密码太短，至少6位' });
+            if (!nickname) return res.status(400).json({ error: '请输入昵称' });
 
             const userRef = db.collection('cp_users').doc(username);
             const userDoc = await userRef.get();
@@ -80,7 +77,6 @@ export default async function handler(req, res) {
                 isAdmin: username === 'admin', 
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             };
-            
             await userRef.set(userData);
             delete userData.password;
             return res.json({ success: true, user: userData });
@@ -90,27 +86,22 @@ export default async function handler(req, res) {
             const { username, password } = body;
             const userRef = db.collection('cp_users').doc(username);
             const userDoc = await userRef.get();
-            
             if (!userDoc.exists) return res.status(400).json({ error: '账号不存在' });
             
             const userData = userDoc.data();
-            if (userData.password !== hashPassword(password)) {
-                return res.status(400).json({ error: '密码错误' });
-            }
+            if (userData.password !== hashPassword(password)) return res.status(400).json({ error: '密码错误' });
+            
             userData.isAdmin = (userData.username === 'admin');
             delete userData.password;
             return res.json({ success: true, user: userData });
         }
 
-        // ==========================================
-        // 2. 帖子模块
-        // ==========================================
-
+        // --- 帖子 ---
         if (req.method === 'GET' && !action) {
             try {
                 const snapshot = await db.collection('cp_posts')
                     .orderBy('timestamp', 'desc')
-                    .limit(50)
+                    .limit(60) // 增加一点数量
                     .get();
                 
                 const posts = [];
@@ -126,7 +117,6 @@ export default async function handler(req, res) {
                             timeStr = date.toLocaleDateString('zh-CN', {month: '2-digit', day:'2-digit'});
                         }
                     }
-                    
                     posts.push({ 
                         id: doc.id, 
                         ...data, 
@@ -134,10 +124,10 @@ export default async function handler(req, res) {
                         likedIds: data.likedIds || [] 
                     });
                 });
-                return res.json(posts); // 确保返回数组
+                return res.json(posts);
             } catch (err) {
-                console.error("Fetch posts failed", err);
-                return res.status(500).json({ error: 'Failed to fetch posts' });
+                console.error("Query error:", err);
+                return res.status(500).json({ error: 'Failed to load posts' });
             }
         }
 
@@ -164,17 +154,12 @@ export default async function handler(req, res) {
 
         if (req.method === 'POST' && action === 'delete_post') {
             const { id, user } = body;
-            if (!user || user.username !== 'admin') {
-                return res.status(403).json({ error: '权限不足' });
-            }
+            if (!user || user.username !== 'admin') return res.status(403).json({ error: '权限不足' });
             await db.collection('cp_posts').doc(id).delete();
             return res.json({ success: true });
         }
 
-        // ==========================================
-        // 3. 互动模块
-        // ==========================================
-
+        // --- 互动 (修复点赞) ---
         if (req.method === 'POST' && action === 'like') {
             const { id, user } = body;
             const docRef = db.collection('cp_posts').doc(id);
@@ -182,87 +167,67 @@ export default async function handler(req, res) {
 
             await db.runTransaction(async (t) => {
                 const doc = await t.get(docRef);
-                if (!doc.exists) throw "Post not found";
+                if (!doc.exists) throw "Post missing";
 
                 const data = doc.data();
                 const likedIds = data.likedIds || [];
                 const index = likedIds.indexOf(identifier);
-
                 let newLikes = data.likes || 0;
 
                 if (index > -1) {
+                    // 取消赞
                     likedIds.splice(index, 1);
                     newLikes = Math.max(0, newLikes - 1);
                 } else {
-                    if (likedIds.length > 2000) likedIds.shift(); 
+                    // 点赞
+                    if (likedIds.length > 3000) likedIds.shift(); // 扩容
                     likedIds.push(identifier);
                     newLikes = newLikes + 1;
                 }
 
-                t.update(docRef, {
-                    likedIds: likedIds,
-                    likes: newLikes
-                });
+                t.update(docRef, { likedIds: likedIds, likes: newLikes });
             });
-            
             return res.json({ success: true, identifier });
         }
 
-        // 获取评论
+        // 评论相关
         if (req.method === 'GET' && action === 'get_comments') {
             const { postId } = req.query;
-            const snapshot = await db.collection('cp_posts').doc(postId).collection('comments')
-                .orderBy('timestamp', 'asc')
-                .get();
-            const comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            return res.json(comments);
+            const snapshot = await db.collection('cp_posts').doc(postId).collection('comments').orderBy('timestamp', 'asc').get();
+            return res.json(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
         }
 
-        // 发送评论
         if (req.method === 'POST' && action === 'add_comment') {
             const { postId, user, content } = body;
-            if (!user) return res.status(401).json({ error: '请先登录' });
-
+            if (!user) return res.status(401).json({ error: '请登录' });
             const postRef = db.collection('cp_posts').doc(postId);
             await db.runTransaction(async (t) => {
-                const commentRef = postRef.collection('comments').doc();
-                t.set(commentRef, {
+                t.set(postRef.collection('comments').doc(), {
                     nickname: user.nickname,
                     username: user.username,
                     avatar: user.avatar,
-                    content: content,
+                    content,
                     timestamp: admin.firestore.FieldValue.serverTimestamp()
                 });
-                t.update(postRef, {
-                    commentsCount: admin.firestore.FieldValue.increment(1)
-                });
+                t.update(postRef, { commentsCount: admin.firestore.FieldValue.increment(1) });
             });
             return res.json({ success: true });
         }
 
-        // 删除评论
         if (req.method === 'POST' && action === 'delete_comment') {
             const { postId, commentId, user } = body;
-            if (!user || user.username !== 'admin') {
-                return res.status(403).json({ error: '权限不足' });
-            }
-
+            if (!user || user.username !== 'admin') return res.status(403).json({ error: '权限不足' });
             const postRef = db.collection('cp_posts').doc(postId);
-            const commentRef = postRef.collection('comments').doc(commentId);
-
             await db.runTransaction(async (t) => {
-                t.delete(commentRef);
-                t.update(postRef, {
-                    commentsCount: admin.firestore.FieldValue.increment(-1)
-                });
+                t.delete(postRef.collection('comments').doc(commentId));
+                t.update(postRef, { commentsCount: admin.firestore.FieldValue.increment(-1) });
             });
             return res.json({ success: true });
         }
 
-        return res.status(404).json({ error: 'API action not found' });
-
-    } catch (error) {
-        console.error("API Error:", error);
-        res.status(500).json({ error: 'Internal Server Error', details: error.message });
+        return res.status(404).json({ error: 'API not found' });
+    } catch (e) {
+        console.error("API Error:", e);
+        res.status(500).json({ error: e.message });
     }
 }
