@@ -4,11 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>CPDD 扩列异世界</title>
+    
+    <!-- 1. 预连接，加速 CDN -->
+    <link rel="preconnect" href="https://cdn.staticfile.org">
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+
+    <!-- 2. 核心引擎 (建议保留 CDN，手动下载太麻烦) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.staticfile.org/vue/3.3.4/vue.global.prod.min.js"></script>
     <link href="https://cdn.staticfile.org/remixicon/3.5.0/remixicon.css" rel="stylesheet">
-    <!-- 引入更圆润的字体 -->
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- 3. 移除 Google 字体，改用系统原生字体 (速度提升的关键!) -->
     <style>
         :root {
             --primary-pink: #ff9a9e;
@@ -18,7 +24,8 @@
         body { 
             background-color: #fdfbfb; 
             background-image: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%);
-            font-family: 'Noto Sans SC', system-ui, -apple-system, sans-serif; 
+            /* 使用系统自带字体，加载 0 延迟 */
+            font-family: system-ui, -apple-system, "Microsoft YaHei", "Segoe UI", Roboto, sans-serif; 
             -webkit-tap-highlight-color: transparent; 
             color: #475569; 
             user-select: none; 
@@ -1110,7 +1117,12 @@
             const logout = () => { user.value=null; localStorage.removeItem('cp_user'); showProfileModal.value=false; };
             const checkAuthAndPost = () => user.value ? showPostModal.value = true : showAuthModal.value = true;
             const removeImage = i => postForm.value.images.splice(i,1);
-            const previewImage = (l,i) => { if (l && l.length > 0 && l[i]) { preview.value = {show:true, list:l, idx:i}; } };
+            // 修复：图片预览点击前检查数据
+            const previewImage = (l,i) => {
+                if (l && l.length > 0 && l[i]) {
+                    preview.value = {show:true, list:l, idx:i};
+                }
+            };
             const scrollToTop = () => window.scrollTo({top:0, behavior:'smooth'});
 
             return {
