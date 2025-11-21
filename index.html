@@ -357,7 +357,7 @@
                         <img :src="chatTarget.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chatTarget.username}`" class="w-9 h-9 rounded-full bg-white border shadow-sm">
                         <div class="flex flex-col">
                             <span class="font-bold text-sm text-slate-800">{{ chatTarget.nickname }}</span>
-                            <span class="text-[10px] text-green-500 font-bold flex items-center gap-1"><span class="w-1.5 h-1.5 bg-green-400 rounded-full"></span>在线</span>
+                            <!-- 移除误导性的在线状态 -->
                         </div>
                     </div>
                 </div>
@@ -574,6 +574,7 @@
             const showProfileModal = ref(false);
             const showInboxModal = ref(false);
             const showChatModal = ref(false);
+            const chatContainer = ref(null); // 新增 ref
             
             const submitting = ref(false);
             const isAuthing = ref(false);
@@ -599,6 +600,20 @@
             const windowWidth = ref(window.innerWidth);
             const genderMap = { male:'男生', female:'女生', secret:'保密' };
             const targetMap = { male:'找男生', female:'找女生', all:'不限' };
+
+            // 辅助函数：滚动到底部
+            const scrollToBottom = (force = false) => {
+                // 给一点点延迟，确保 DOM 渲染完成（尤其是弹窗刚打开时）
+                setTimeout(() => {
+                    const el = chatContainer.value;
+                    if (el) {
+                        el.scrollTo({
+                            top: el.scrollHeight,
+                            behavior: force ? 'auto' : 'smooth' // 打开时瞬间跳转，发消息时平滑滚动
+                        });
+                    }
+                }, 50);
+            };
 
             const checkUnread = async () => {
                 if (!user.value) return;
@@ -640,6 +655,9 @@
                 pendingMessages.value = [];
                 showChatModal.value = true;
                 
+                // 打开时，强制瞬间滚到底部
+                scrollToBottom(true);
+
                 if(chatId) {
                     const chat = inboxList.value.find(c => c.chatId === chatId);
                     if(chat && chat.unread > 0) { 
@@ -666,13 +684,20 @@
                 if (reqChatId !== currentChatId.value) return;
 
                 const msgs = await res.json();
+                
+                // 检测是否有新消息，如果有，需要滚动
+                const isNewMessage = msgs.length > serverMessages.value.length || 
+                                     (msgs.length > 0 && serverMessages.value.length > 0 && msgs[msgs.length-1].id !== serverMessages.value[serverMessages.value.length-1].id);
+                
                 serverMessages.value = msgs;
-                // Filter out pending messages that are now on server (using timestamp proximity)
+                // Filter out pending messages that are now on server
                 pendingMessages.value = pendingMessages.value.filter(p => 
                     !msgs.some(s => s.content === p.content && s.sender === p.sender && Math.abs(p.timestamp - (s.timestamp?s.timestamp._seconds*1000:0)) < 10000)
                 );
 
-                nextTick(() => { const el = app._instance.refs.chatContainer; if(el) el.scrollTop = el.scrollHeight; });
+                if (isNewMessage) {
+                    scrollToBottom(); // 有新消息自动滚动
+                }
             };
 
             const mergedMessages = computed(() => {
@@ -692,7 +717,8 @@
                 const tempMsg = { id: now, sender: user.value.username, content: txt, timestamp: now, pending: true };
                 pendingMessages.value.push(tempMsg);
                 
-                nextTick(() => { const el = app._instance.refs.chatContainer; if(el) el.scrollTop = el.scrollHeight; });
+                // 发送消息后自动滚动
+                scrollToBottom();
 
                 try {
                     await fetch(`${API}?action=chat_send`, {
@@ -731,13 +757,88 @@
             const fetchPosts = async () => { loading.value = true; error.value = ''; try { const res = await fetch(API); if(!res.ok) throw new Error('连接超时啦'); const data = await res.json(); if(Array.isArray(data)) posts.value = data; else throw new Error('数据格式错误'); } catch(e) { error.value = e.message; posts.value = []; } loading.value = false; };
             const isLiked = (p) => { if(!p.likedIds) return false; if(user.value) return p.likedIds.includes('user:'+user.value.username); const locals = JSON.parse(localStorage.getItem('cp_likes')||'[]'); return locals.includes(p.id); };
             const handleLike = async (p) => { if(p.liking) return; p.liking = true; const liked = isLiked(p); if(liked) { p.likes--; if(user.value) p.likedIds = p.likedIds.filter(id => id !== 'user:'+user.value.username); else { const ls = JSON.parse(localStorage.getItem('cp_likes')||'[]'); localStorage.setItem('cp_likes', JSON.stringify(ls.filter(id=>id!==p.id))); p.likedIds = []; } } else { p.likes++; if(user.value) { if(!p.likedIds) p.likedIds=[]; p.likedIds.push('user:'+user.value.username); } else { const ls = JSON.parse(localStorage.getItem('cp_likes')||'[]'); ls.push(p.id); localStorage.setItem('cp_likes', JSON.stringify(ls)); if(!p.likedIds) p.likedIds=[]; p.likedIds.push('temp'); } } try { await fetch(`${API}?action=like`, {method:'POST', body:JSON.stringify({id:p.id, user:user.value})}); } catch(e){ p.likes = liked ? p.likes+1 : p.likes-1; } p.liking = false; };
-            const compress = (file) => new Promise(resolve => { const r = new FileReader(); r.onload = e => { const img = new Image(); img.onload = () => { const cvs = document.createElement('canvas'); let w=img.width, h=img.height; const MAX = 1920; if(w>MAX){ h*=MAX/w; w=MAX; } cvs.width=w; cvs.height=h; const ctx = cvs.getContext('2d'); ctx.drawImage(img,0,0,w,h); let q = 0.9, dataUrl = cvs.toDataURL('image/jpeg', q); const LIMIT = 330000; while(dataUrl.length > LIMIT && q > 0.3) { q-=0.1; dataUrl = cvs.toDataURL('image/jpeg', q); } if(dataUrl.length > LIMIT) { w*=0.7; h*=0.7; cvs.width=w; cvs.height=h; ctx.drawImage(img,0,0,w,h); dataUrl=cvs.toDataURL('image/jpeg', 0.6); } resolve(dataUrl); }; img.src = e.target.result; }; r.readAsDataURL(file); });
+            
+            // ★ 修复：增强压缩逻辑，确保图片足够小
+            const compress = (file) => new Promise(resolve => { 
+                const r = new FileReader(); 
+                r.onload = e => { 
+                    const img = new Image(); 
+                    img.onload = () => { 
+                        let w = img.width, h = img.height; 
+                        // 初始最大尺寸限制降低到 1080
+                        const MAX_DIM = 1080; 
+                        if (w > MAX_DIM || h > MAX_DIM) { 
+                            const ratio = w / h;
+                            if (w > h) { w = MAX_DIM; h = w / ratio; }
+                            else { h = MAX_DIM; w = h * ratio; }
+                        }
+                        
+                        const cvs = document.createElement('canvas'); 
+                        const ctx = cvs.getContext('2d'); 
+                        
+                        // 目标单张图片大小控制在 200KB 以内 (Firestore 限制 1MB，留出余量)
+                        const LIMIT = 200000; 
+                        let q = 0.8;
+                        let dataUrl = '';
+                        
+                        const doCompress = () => {
+                            cvs.width = w;
+                            cvs.height = h;
+                            ctx.drawImage(img, 0, 0, w, h);
+                            dataUrl = cvs.toDataURL('image/jpeg', q);
+                        };
+                        
+                        doCompress();
+                        
+                        // 循环压缩：如果大了，先降质量，质量太低就缩尺寸
+                        while (dataUrl.length > LIMIT && (q > 0.3 || w > 300)) { 
+                            if (q > 0.3) {
+                                q -= 0.1; 
+                            } else {
+                                // 质量已经很低了，开始缩小尺寸
+                                w *= 0.8;
+                                h *= 0.8;
+                            }
+                            doCompress(); 
+                        } 
+                        resolve(dataUrl); 
+                    }; 
+                    img.src = e.target.result; 
+                }; 
+                r.readAsDataURL(file); 
+            });
+
             const handleAvatarUpload = async (e) => { if(e.target.files[0]) authForm.value.avatar = await compress(e.target.files[0]); };
             const handleProfileAvatarChange = async (e) => { if(e.target.files[0]) profileForm.value.avatar = await compress(e.target.files[0]); };
             const handlePostImageUpload = async (e) => { if(e.target.files[0] && postForm.value.images.length<3) postForm.value.images.push(await compress(e.target.files[0])); e.target.value=''; };
             const handleAuth = async () => { if(!authForm.value.username) return alert('请输入账号'); if (authMode.value === 'register' && authForm.value.username !== 'admin') { if(authForm.value.username.length < 8) return alert('账号至少8位'); } isAuthing.value = true; try { const res = await fetch(`${API}?action=${authMode.value}`, {method:'POST', body:JSON.stringify(authForm.value)}); const d = await res.json(); if(d.error) alert(d.error); else { user.value = d.user; localStorage.setItem('cp_user', JSON.stringify(d.user)); showAuthModal.value = false; } } catch(e){ alert('网络连接错误'); } isAuthing.value = false; };
             const handleProfileUpdate = async () => { isUpdatingProfile.value = true; try { const payload = { username: user.value.username, user: user.value, ...profileForm.value }; const res = await fetch(`${API}?action=update_profile`, { method:'POST', body:JSON.stringify(payload) }); const d = await res.json(); if(d.success) { user.value = d.user; localStorage.setItem('cp_user', JSON.stringify(d.user)); alert('保存成功'); showProfileModal.value = false; } else { alert(d.error || '保存失败'); } } catch(e) { alert('网络错误'); } isUpdatingProfile.value = false; };
-            const submitPost = async () => { if(!postForm.value.content) return alert('写点什么吧'); const totalSize = postForm.value.images.reduce((acc, img) => acc + img.length, 0); if (totalSize > 1000000) return alert('图片总大小超限，请删除一张或换小图重试'); submitting.value = true; try { const res = await fetch(`${API}?action=create_post`, {method:'POST', body:JSON.stringify({user:user.value, ...postForm.value})}); const data = await res.json().catch(() => null); if(res.ok && data && data.success) { showPostModal.value = false; postForm.value = {content:'', game:'王者荣耀', requirement:'', images:[]}; fetchPosts(); } else { const msg = data ? (data.error || '未知错误') : `服务器响应异常`; alert(`发布失败: ${msg}`); } } catch(e){ alert('网络错误'); } submitting.value = false; };
+            
+            // ★ 修复：严格检查总大小 (限制在 850KB 以内)
+            const submitPost = async () => { 
+                if(!postForm.value.content) return alert('写点什么吧'); 
+                const totalSize = postForm.value.images.reduce((acc, img) => acc + img.length, 0); 
+                // 1MB = 1048576，预留 200KB 给文字和其他字段，限制图片总和 850000
+                if (totalSize > 850000) return alert('图片总大小还是有点大，请减少一张或重新上传重试 QAQ'); 
+                
+                submitting.value = true; 
+                try { 
+                    const res = await fetch(`${API}?action=create_post`, {method:'POST', body:JSON.stringify({user:user.value, ...postForm.value})}); 
+                    const data = await res.json().catch(() => null); 
+                    if(res.ok && data && data.success) { 
+                        showPostModal.value = false; 
+                        postForm.value = {content:'', game:'王者荣耀', requirement:'', images:[]}; 
+                        fetchPosts(); 
+                    } else { 
+                        const msg = data ? (data.error || '未知错误') : `服务器响应异常`; 
+                        alert(`发布失败: ${msg}`); 
+                    } 
+                } catch(e){ 
+                    alert('网络错误'); 
+                } 
+                submitting.value = false; 
+            };
+            
             const deletePost = async (id) => { if(confirm('确定删除这条动态吗？')) { await fetch(`${API}?action=delete_post`, {method:'POST', body:JSON.stringify({id, user:user.value})}); fetchPosts(); } };
             const toggleComments = async (p) => { p.showComments = !p.showComments; if(p.showComments && !p.loaded) { p.loadingComments = true; try { p.commentList = await (await fetch(`${API}?action=get_comments&postId=${p.id}`)).json(); p.loaded=true; } catch(e){} p.loadingComments = false; } };
             const submitComment = async (p) => { if(!user.value) return showAuthModal.value = true; if(!p.newCommentInput) return; const txt = p.newCommentInput; p.newCommentInput=''; if(!p.commentList) p.commentList=[]; const tempCmt = {id:Date.now(), nickname:user.value.nickname, username:user.value.username, avatar:user.value.avatar, content:txt}; p.commentList.push(tempCmt); p.commentsCount = (p.commentsCount||0)+1; await fetch(`${API}?action=add_comment`, {method:'POST', body:JSON.stringify({postId:p.id, user:user.value, content:txt})}); };
@@ -755,6 +856,7 @@
                 showAuthModal, authMode, authForm, isAuthing, showPostModal, postForm, submitting, preview,
                 showProfileModal, profileForm, isUpdatingProfile, viewingUser, isMyProfile, genderMap, targetMap,
                 showInboxModal, inboxList, showChatModal, chatMessages: mergedMessages, chatTarget, chatInput, totalUnread,
+                chatContainer, // 导出 ref
                 
                 refresh:fetchPosts, handleAuth, handleAvatarUpload, handlePostImageUpload, submitPost,
                 deletePost, isLiked, handleLike, toggleComments, submitComment, deleteComment,
