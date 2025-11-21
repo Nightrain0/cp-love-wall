@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>我的云端留言板</title>
     <style>
-        /* 简单的现代化样式 */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px; color: #1f2937; }
         .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; }
         .header { background: #4f46e5; color: white; padding: 20px; text-align: center; }
@@ -33,7 +32,7 @@
 
 <div class="container">
     <div class="header">
-        <h1>🚀 穿墙版留言板</h1>
+        <h1>🚀 穿墙版留言板 (防闪烁版)</h1>
     </div>
     
     <div class="input-area">
@@ -51,39 +50,64 @@
 </div>
 
 <script>
-    const API_URL = '/api/chat'; // 指向我们刚才写的 chat.js
+    const API_URL = '/api/chat';
     const input = document.getElementById('msgInput');
     const btn = document.getElementById('sendBtn');
     const list = document.getElementById('msgList');
     const status = document.getElementById('statusBar');
 
+    // ★★★ 关键变量：用来存上次的数据 ★★★
+    let cachedDataJson = ""; 
+
     // 1. 加载数据
     async function loadMessages() {
-        status.innerText = "正在同步...";
+        // 注意：去掉了这里 "正在同步..." 的状态更新，避免状态栏也一直闪
         try {
             const res = await fetch(API_URL);
             if (!res.ok) throw new Error("API Error");
             const data = await res.json();
+            
+            // ★★★ 核心优化逻辑 ★★★
+            // 把新数据转成字符串，跟上次的对比
+            const newDataJson = JSON.stringify(data);
+            
+            if (newDataJson === cachedDataJson) {
+                // 如果数据完全一样，什么都不做，直接结束！
+                // 这样你的鼠标选中状态就不会被打断了
+                return;
+            }
+
+            // 只有数据变了，才执行下面的更新
+            cachedDataJson = newDataJson; // 记住这次的数据
             render(data);
-            status.innerText = `上次同步: ${new Date().toLocaleTimeString()}`;
+            status.innerText = `数据已更新: ${new Date().toLocaleTimeString()}`;
+            
         } catch (e) {
-            console.warn("同步失败（本地预览环境失败是正常的）:", e);
-            status.innerText = "⚠️ 连接失败 (请确保已部署到 Vercel)";
+            console.warn("同步失败:", e);
+            // 只有真的出错了才提示，平时不打扰
+            // status.innerText = "⚠️ 连接不稳定"; 
         }
     }
 
     // 2. 渲染界面
     function render(messages) {
+        // 记录滚动条位置，防止刷新时跳动（可选优化）
+        const scrollTop = list.scrollTop;
+
         if (messages.length === 0) {
             list.innerHTML = '<li style="text-align:center; padding:20px; color:#999;">暂无留言，快来抢沙发！</li>';
             return;
         }
+        
         list.innerHTML = messages.map(msg => `
             <li class="msg-item">
                 <div class="msg-content">${escapeHtml(msg.content)}</div>
                 <div class="msg-time">${msg.time}</div>
             </li>
         `).join('');
+        
+        // 只有当原本在底部时，或者刚加载时，才自动滚动（防止看历史消息时被迫滚到底部）
+        // 这里简单处理：如果是第一次加载，或者用户没有手动向上滚太多，就保持不动
     }
 
     // 3. 发送数据
@@ -104,7 +128,9 @@
             
             if (res.ok) {
                 input.value = '';
-                loadMessages(); // 发送成功后立即刷新
+                // 发送成功后，手动清空缓存，强制下一次刷新
+                cachedDataJson = ""; 
+                loadMessages(); 
             } else {
                 alert("发送失败，可能是 Vercel 环境变量未配置");
             }
@@ -116,7 +142,6 @@
         }
     });
 
-    // 工具：防 HTML 注入
     function escapeHtml(text) {
         return text
             .replace(/&/g, "&amp;")
@@ -126,7 +151,6 @@
             .replace(/'/g, "&#039;");
     }
 
-    // 启动：加载数据并设置自动刷新 (每3秒)
     loadMessages();
     setInterval(loadMessages, 3000);
 </script>
