@@ -4,447 +4,247 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>CPDD 扩列小站</title>
-    
-    <!-- 仅保留图标库和 Vue -->
-    <link href="https://cdn.staticfile.org/remixicon/3.5.0/remixicon.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.staticfile.org/vue/3.3.4/vue.global.prod.min.js"></script>
-
-    <!-- 全局错误捕获 -->
-    <script>
-        window.onerror = function(msg) {
-            document.getElementById('global-error').style.display = 'flex';
-            document.getElementById('error-msg').innerText = msg;
-            document.getElementById('static-loading').style.display = 'none';
-        };
-    </script>
-
+    <link href="https://cdn.staticfile.org/remixicon/3.5.0/remixicon.css" rel="stylesheet">
     <style>
-        /* --- 原生 CSS 重构，彻底告别 Tailwind 依赖 --- */
-        :root {
-            --primary: #e11d48; /* 玫瑰红 */
-            --bg-page: #f8fafc;
-            --bg-card: #ffffff;
-            --text-main: #334155;
-            --text-sub: #94a3b8;
-            --border: #f1f5f9;
-            --shadow: 0 4px 12px rgba(0,0,0,0.05);
-        }
-
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body {
-            margin: 0; padding: 0;
-            background-color: var(--bg-page);
-            background-image: linear-gradient(to bottom right, #fff1f2, #f8fafc, #f0f9ff);
-            background-attachment: fixed;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            color: var(--text-main);
-            padding-bottom: 100px;
-        }
-
-        /* 布局工具类 */
-        .flex { display: flex; }
-        .flex-col { flex-direction: column; }
-        .items-center { align-items: center; }
-        .justify-between { justify-content: space-between; }
-        .justify-center { justify-content: center; }
-        .gap-1 { gap: 4px; } .gap-2 { gap: 8px; } .gap-3 { gap: 12px; }
-        .hidden { display: none; }
-
-        /* 顶部导航 */
-        .header {
-            position: fixed; top: 0; left: 0; right: 0; height: 60px;
-            background: rgba(255,255,255,0.9); backdrop-filter: blur(10px);
-            border-bottom: 1px solid var(--border);
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 0 16px; z-index: 100;
-        }
-        .logo { font-weight: 900; font-size: 18px; letter-spacing: -0.5px; }
-        .logo span { color: var(--primary); }
-        .avatar-sm { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .btn-login {
-            background: #0f172a; color: white; border: none; padding: 8px 16px;
-            border-radius: 20px; font-size: 12px; font-weight: bold; cursor: pointer;
-        }
-
-        /* 筛选栏 */
-        .filter-bar {
-            position: sticky; top: 60px; z-index: 90;
-            background: rgba(255,255,255,0.9); backdrop-filter: blur(10px);
-            padding: 12px 16px; border-bottom: 1px solid var(--border);
-            overflow-x: auto; white-space: nowrap;
-            display: flex; gap: 8px;
-        }
-        .filter-bar::-webkit-scrollbar { display: none; }
-        .tag {
-            padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: bold;
-            border: 1px solid transparent; cursor: pointer; transition: all 0.2s;
-        }
-        .tag.active { background: #0f172a; color: white; transform: scale(1.05); }
-        .tag.inactive { background: #fff; color: var(--text-sub); border-color: var(--border); }
-
-        /* 主容器 & 瀑布流 */
-        .main-container { max-width: 1024px; margin: 0 auto; padding: 16px; }
-        .waterfall { display: flex; gap: 16px; align-items: flex-start; }
-        .column { flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-
-        /* 卡片样式 */
-        .card {
-            background: var(--bg-card); border-radius: 16px;
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow); padding: 16px;
-            transition: transform 0.2s;
-        }
-        .card:active { transform: scale(0.98); }
+        body { background-color: #f8fafc; background-image: linear-gradient(to bottom right, #fff1f2, #f8fafc, #f0f9ff); background-attachment: fixed; font-family: sans-serif; -webkit-tap-highlight-color: transparent; color: #334155; user-select: none; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        [v-cloak] { display: none !important; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        .list-enter-active, .list-leave-active { transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1); }
+        .list-enter-from, .list-leave-to { opacity: 0; transform: translateY(30px); }
+        .app-card { background: #fff; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transition: all 0.3s ease; border: 1px solid #f1f5f9; overflow: hidden; margin-bottom: 20px; break-inside: avoid; }
+        @media (min-width: 768px) { .app-card:hover { transform: translateY(-3px); box-shadow: 0 15px 30px -5px rgba(244, 114, 182, 0.15); } }
+        .tag { font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 100px; transition: all 0.2s; white-space: nowrap; }
+        .tag-active { background: #1e293b; color: #fff; transform: scale(1.05); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .tag-inactive { background: #fff; color: #64748b; border: 1px solid #e2e8f0; }
+        .img-grid { display: grid; gap: 4px; border-radius: 12px; overflow: hidden; margin-top: 12px; }
+        .img-grid-1 { grid-template-columns: 1fr; }
+        .img-grid-2 { grid-template-columns: 1fr 1fr; }
+        .img-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .img-item { aspect-ratio: 1/1; width: 100%; object-fit: cover; cursor: zoom-in; transition: filter 0.2s; }
+        .img-grid-1 .img-item { aspect-ratio: 16/9; max-height: 260px; }
+        .pb-safe { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+        .fab-safe { bottom: calc(32px + env(safe-area-inset-bottom)); }
+        .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px; }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         
-        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-        .user-info { display: flex; gap: 8px; align-items: center; }
-        .nickname { font-size: 14px; font-weight: bold; color: #0f172a; }
-        .time { font-size: 10px; color: var(--text-sub); }
-        .game-badge { font-size: 10px; background: #f1f5f9; color: var(--text-sub); padding: 2px 6px; border-radius: 4px; }
-        
-        .card-content { font-size: 14px; line-height: 1.5; margin-bottom: 12px; word-break: break-all; }
-        .req-tag { background: #fff1f2; color: var(--primary); padding: 8px; border-radius: 8px; font-size: 12px; margin-bottom: 12px; }
-        
-        /* 图片网格 */
-        .img-grid { display: grid; gap: 4px; border-radius: 12px; overflow: hidden; }
-        .img-grid.cols-1 { grid-template-columns: 1fr; }
-        .img-grid.cols-2 { grid-template-columns: 1fr 1fr; }
-        .img-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
-        .img-item { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; }
-        .img-grid.cols-1 .img-item { aspect-ratio: 16/9; }
-
-        /* 底部操作栏 */
-        .card-footer { 
-            display: flex; justify-content: space-between; margin-top: 12px; padding-top: 12px; 
-            border-top: 1px solid var(--border); 
-        }
-        .btn-action { 
-            background: transparent; border: none; color: var(--text-sub); 
-            font-size: 12px; font-weight: bold; display: flex; align-items: center; gap: 4px; cursor: pointer; 
-        }
-        .btn-action.active { color: var(--primary); }
-
-        /* 悬浮按钮 */
-        .fab-group { position: fixed; bottom: 30px; right: 20px; display: flex; flex-direction: column; gap: 12px; z-index: 90; }
-        .fab { 
-            width: 48px; height: 48px; border-radius: 50%; border: none;
-            background: #0f172a; color: white; box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-            display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer;
-        }
-        .fab.white { background: white; color: var(--text-sub); font-size: 20px; }
-
-        /* 弹窗通用 */
-        .modal-mask { 
-            position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; backdrop-filter: blur(4px);
-            display: flex; align-items: center; justify-content: center; padding: 20px;
-        }
-        .modal-box { 
-            background: white; width: 100%; max-width: 320px; border-radius: 24px; padding: 24px; 
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column;
-        }
-        .input-field { 
-            width: 100%; background: #f8fafc; border: none; padding: 12px; border-radius: 12px; 
-            font-size: 14px; outline: none; margin-bottom: 10px;
-        }
-        .btn-primary { 
-            width: 100%; background: var(--primary); color: white; border: none; padding: 12px; 
-            border-radius: 12px; font-weight: bold; font-size: 14px; margin-top: 10px; cursor: pointer;
-        }
-        .btn-primary:disabled { opacity: 0.6; }
-
-        /* 聊天界面 */
-        .chat-modal { max-width: 400px; height: 70vh; padding: 0; }
-        .chat-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .chat-body { flex: 1; overflow-y: auto; padding: 16px; background: #f8fafc; }
-        .chat-footer { padding: 12px; background: white; border-top: 1px solid var(--border); display: flex; gap: 8px; }
-        
-        .msg-row { display: flex; gap: 8px; margin-bottom: 16px; align-items: flex-end; }
-        .msg-row.mine { flex-direction: row-reverse; }
-        .msg-avatar { width: 32px; height: 32px; border-radius: 50%; border: 1px solid white; }
-        .msg-bubble { 
-            max-width: 75%; padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.4; word-break: break-all; 
-            position: relative;
-        }
-        .msg-row.mine .msg-bubble { background: #1e293b; color: white; border-bottom-right-radius: 4px; }
-        .msg-row.other .msg-bubble { background: white; color: #333; border: 1px solid #e2e8f0; border-bottom-left-radius: 4px; }
-        .msg-time { font-size: 10px; color: #ccc; margin-top: 4px; text-align: right; }
-
-        /* 评论区 */
-        .comment-area { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
-        .comment-item { display: flex; gap: 8px; margin-bottom: 8px; font-size: 12px; }
-        .comment-content { background: #f8fafc; padding: 6px 10px; border-radius: 12px; flex: 1; }
-        .comment-name { font-weight: bold; color: #334155; margin-bottom: 2px; }
-        
-        /* 红点 */
-        .badge { 
-            position: absolute; top: -2px; right: -2px; background: red; color: white; 
-            font-size: 10px; width: 16px; height: 16px; border-radius: 50%; 
-            display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white;
-        }
-        
-        /* 辅助 */
-        [v-cloak] { display: none; }
+        .chat-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 16px; }
+        .chat-row.mine { flex-direction: row-reverse; }
+        .chat-avatar { width: 32px; height: 32px; border-radius: 50%; background: #f1f5f9; object-fit: cover; border: 1px solid white; flex-shrink: 0; }
+        .chat-bubble-container { max-width: 75%; display: flex; flex-direction: column; }
+        .chat-row.mine .chat-bubble-container { align-items: flex-end; }
+        .chat-bubble { padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.5; word-break: break-all; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .chat-row.mine .chat-bubble { background: #1e293b; color: white; border-bottom-right-radius: 4px; }
+        .chat-row.other .chat-bubble { background: #fff; color: #334155; border-top-left-radius: 4px; border: 1px solid #e2e8f0; }
+        .chat-time { font-size: 9px; color: #94a3b8; margin-top: 4px; margin-left: 2px; margin-right: 2px; }
+        .chat-pending { opacity: 0.7; }
     </style>
 </head>
 <body>
 
-<!-- 错误提示兜底 -->
-<div id="global-error" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:white;z-index:9999;flex-direction:column;align-items:center;justify-content:center;">
-    <div style="font-size:40px">😵</div>
-    <p id="error-msg" style="margin:20px;color:red;font-size:12px;"></p>
-    <button onclick="location.reload()" style="padding:10px 30px;border-radius:20px;border:1px solid #ccc;background:white;">刷新</button>
+<div id="static-loading" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f8fafc;z-index:9999;transition:opacity 0.5s;">
+    <div style="font-size:40px;animation:bounce 1s infinite;">🍡</div>
+    <p style="color:#94a3b8;font-size:12px;margin-top:10px;font-weight:bold;">资源加载中...</p>
+    <style>@keyframes bounce {0%, 100% {transform: translateY(0);} 50% {transform: translateY(-10px);}}</style>
 </div>
 
-<!-- 静态 Loading -->
-<div id="static-loading" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#f8fafc;z-index:9999;display:flex;justify-content:center;align-items:center;font-weight:bold;color:#ccc;">
-    LOADING...
-</div>
-
-<div id="app" v-cloak>
-    <!-- 头部 -->
-    <div class="header">
-        <div class="logo" @click="refresh">CPDD<span>.</span></div>
-        <div style="display:flex; gap:16px; align-items:center;">
-            <div v-if="user" style="position:relative; cursor:pointer;" @click="openInbox">
-                <i class="ri-mail-line" style="font-size:24px; color:#64748b;"></i>
-                <div v-if="totalUnread > 0" class="badge">{{ totalUnread > 9 ? '9+' : totalUnread }}</div>
-            </div>
-            <div v-if="user" @click="handleAvatarClick(user.username)">
-                <img :src="user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`" class="avatar-sm">
-            </div>
-            <button v-else class="btn-login" @click="showAuthModal=true">登录/注册</button>
-        </div>
-    </div>
-
-    <!-- 筛选 -->
-    <div class="filter-bar">
-        <div v-for="g in games" :key="g" class="tag" :class="filterGame===g?'active':'inactive'" @click="changeFilter(g)">{{g}}</div>
-    </div>
+<div id="app" v-cloak class="min-h-screen">
     
-    <!-- 公告 -->
-    <div v-if="notice" class="main-container" style="padding-bottom:0;">
-        <div style="background:#fff7ed; color:#ea580c; padding:10px; border-radius:12px; font-size:12px; display:flex; gap:6px; border:1px solid #fed7aa;">
-            <i class="ri-notification-4-fill"></i> {{notice}}
+    <header class="fixed top-0 inset-x-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-100 h-16 flex items-center justify-between px-4 transition-shadow" :class="{'shadow-sm': scrollY > 10}">
+        <div class="flex items-center gap-2 cursor-pointer" @click="refresh">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center text-white shadow-lg shadow-pink-200">
+                <i class="ri-heart-fill"></i>
+            </div>
+            <h1 class="text-lg font-extrabold text-slate-800 tracking-tight">CPDD<span class="text-rose-500">.</span></h1>
+        </div>
+        <div v-if="user" class="flex items-center gap-4">
+            <div class="relative cursor-pointer group" @click="openInbox">
+                <i class="ri-mail-line text-2xl text-slate-500 group-hover:text-slate-800 transition-colors"></i>
+                <div v-if="totalUnread > 0" class="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center border border-white font-bold shadow-sm px-1">
+                    {{ totalUnread > 99 ? '99+' : totalUnread }}
+                </div>
+            </div>
+            <div class="flex items-center gap-2 cursor-pointer" @click="handleAvatarClick(user.username)">
+                <img :src="user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`" class="w-9 h-9 rounded-full border bg-white object-cover">
+            </div>
+        </div>
+        <button v-else @click="showAuthModal = true" class="bg-slate-900 text-white text-xs font-bold px-5 py-2 rounded-full shadow-lg">登录/注册</button>
+    </header>
+    <div class="h-16"></div>
+
+    <div class="sticky top-16 z-30 bg-white/90 backdrop-blur-md border-b border-slate-50 py-3 px-4 overflow-x-auto hide-scrollbar">
+        <div class="flex gap-2 min-w-max">
+            <button v-for="g in games" :key="g" @click="changeFilter(g)" class="tag" :class="filterGame === g ? 'tag-active' : 'tag-inactive'">{{ g }}</button>
         </div>
     </div>
 
-    <!-- 内容 -->
-    <div class="main-container">
-        <div v-if="loading" style="text-center; padding: 50px; color:#ccc;">加载中...</div>
-        <div v-else-if="!posts.length" style="text-center; padding: 50px; color:#ccc;">暂无内容</div>
-        
-        <div v-else class="waterfall">
-            <div v-for="(col, i) in columns" :key="i" class="column">
-                <div v-for="post in col" :key="post.id" class="card">
-                    <!-- 帖子头 -->
-                    <div class="card-header">
-                        <div class="user-info" @click.stop="handleAvatarClick(post.username)">
-                            <img :src="post.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.username}`" class="avatar-sm">
+    <div v-if="notice" class="max-w-5xl mx-auto px-4 mt-4">
+        <div class="bg-orange-50 border border-orange-100 rounded-xl p-3 flex gap-2 text-xs text-orange-700">
+            <i class="ri-notification-4-fill"></i> {{ notice }}
+        </div>
+    </div>
+
+    <main class="max-w-5xl mx-auto px-4 pt-6 pb-safe">
+        <div v-if="error" class="text-center py-20">
+             <div class="text-4xl mb-2">⚠️</div>
+             <p class="text-sm text-slate-500 mb-4">{{ error }}</p>
+             <button @click="refresh" class="bg-rose-500 text-white px-6 py-2 rounded-full text-sm font-bold">重试</button>
+        </div>
+        <div v-else-if="loading" class="text-center py-32 text-rose-300">
+            <i class="ri-loader-4-line text-3xl animate-spin"></i>
+            <p class="text-xs font-bold mt-2">加载中...</p>
+        </div>
+        <div v-else-if="!posts.length" class="text-center py-32 text-slate-400">
+            <div class="text-5xl mb-2 grayscale opacity-50">🏔️</div>
+            <p class="text-sm font-bold">暂无内容</p>
+            <button @click="checkAuthAndPost" class="mt-4 text-rose-500 text-xs font-bold hover:underline">去发布</button>
+        </div>
+        <div v-else class="flex gap-4 items-start">
+            <div v-for="(col, i) in columns" :key="i" class="flex-1 flex flex-col gap-4 min-w-0">
+                <div v-for="post in col" :key="post.id" class="app-card p-4 group relative">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex items-center gap-2 cursor-pointer" @click.stop="handleAvatarClick(post.username)">
+                            <img :src="post.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.username}`" class="w-9 h-9 rounded-full bg-slate-100 object-cover">
                             <div>
-                                <div style="display:flex;align-items:center;gap:4px;">
-                                    <div class="nickname">{{post.nickname}}</div>
-                                    <i v-if="post.gender==='male'" class="ri-men-line" style="color:#60a5fa;font-size:12px;"></i>
-                                    <i v-if="post.gender==='female'" class="ri-women-line" style="color:#f472b6;font-size:12px;"></i>
+                                <div class="flex items-center gap-1 flex-wrap">
+                                    <span class="text-sm font-bold text-slate-800">{{ post.nickname }}</span>
+                                    <i v-if="post.gender==='male'" class="ri-men-line text-blue-400 text-xs"></i>
+                                    <i v-if="post.gender==='female'" class="ri-women-line text-pink-400 text-xs"></i>
+                                    <span class="text-[10px] px-1.5 py-0.5 bg-slate-100 rounded text-slate-500">{{ post.game }}</span>
                                 </div>
-                                <div class="time">{{post.timeStr}}</div>
+                                <div class="flex gap-2 items-center">
+                                    <span class="text-[10px] text-slate-400">{{ post.timeStr }}</span>
+                                    <span v-if="post.target==='male'" class="text-[9px] bg-blue-50 text-blue-500 px-1 rounded">找小哥哥</span>
+                                    <span v-if="post.target==='female'" class="text-[9px] bg-pink-50 text-pink-500 px-1 rounded">找小姐姐</span>
+                                </div>
                             </div>
                         </div>
-                        <button v-if="user && (user.isAdmin || user.username===post.username)" @click="deletePost(post.id)" style="border:none;background:none;color:#cbd5e1;"><i class="ri-delete-bin-line"></i></button>
+                        <button v-if="user && (user.isAdmin || user.username === post.username)" @click="deletePost(post.id)" class="text-slate-300 hover:text-red-500 p-2"><i class="ri-delete-bin-line"></i></button>
                     </div>
-                    
-                    <!-- 内容 -->
-                    <div class="card-content">{{post.desc}}</div>
-                    <div v-if="post.requirement" class="req-tag">需求：{{post.requirement}}</div>
-                    
-                    <!-- 图片 -->
-                    <div v-if="post.images && post.images.length" class="img-grid" :class="'cols-'+Math.min(post.images.length,3)">
-                        <img v-for="(img, idx) in post.images" :src="img" class="img-item" @click="previewImage(post.images, idx)">
+                    <div class="text-sm text-slate-700 mb-3 whitespace-pre-wrap break-words">{{ post.desc }}</div>
+                    <div v-if="post.qq || post.wx" class="flex gap-2 mb-3">
+                        <button v-if="post.qq" @click="copyText(post.qq, 'QQ')" class="flex items-center gap-1 text-[10px] bg-blue-50 text-blue-500 px-2 py-1 rounded hover:bg-blue-100 transition-colors"><i class="ri-qq-fill"></i> {{ post.qq }}</button>
+                        <button v-if="post.wx" @click="copyText(post.wx, '微信')" class="flex items-center gap-1 text-[10px] bg-green-50 text-green-500 px-2 py-1 rounded hover:bg-green-100 transition-colors"><i class="ri-wechat-fill"></i> {{ post.wx }}</button>
                     </div>
-                    
-                    <!-- 底部操作 -->
-                    <div class="card-footer">
-                        <button class="btn-action" @click="toggleComments(post)">
-                            <i class="ri-chat-1-line" style="font-size:16px;"></i> {{post.commentsCount||0}}
+                    <div v-if="post.requirement" class="bg-rose-50 rounded-lg p-2 mb-3 text-xs text-slate-600 border border-rose-100">
+                        <span class="font-bold text-rose-500">需求：</span>{{ post.requirement }}
+                    </div>
+                    <div v-if="post.images && post.images.length" class="img-grid" :class="'img-grid-' + Math.min(post.images.length, 3)">
+                        <img v-for="(img, idx) in post.images" :key="idx" :src="img" class="img-item" @click="previewImage(post.images, idx)">
+                    </div>
+                    <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
+                        <button @click="toggleComments(post)" class="flex items-center gap-1 text-slate-400 hover:text-slate-600 text-xs font-bold px-2 py-1">
+                            <i class="ri-chat-1-line text-base"></i> {{ post.commentsCount || 0 }}
                         </button>
-                        <button class="btn-action" :class="{active: isLiked(post)}" @click="handleLike(post)">
-                            <i :class="isLiked(post)?'ri-heart-3-fill':'ri-heart-3-line'" style="font-size:16px;"></i> {{post.likes||0}}
+                        <button @click="handleLike(post)" :disabled="post.liking" class="flex items-center gap-1 text-xs font-bold transition-colors px-2 py-1" :class="isLiked(post) ? 'text-rose-500' : 'text-slate-400'">
+                            <i :class="isLiked(post) ? 'ri-heart-3-fill' : 'ri-heart-3-line'" class="text-base"></i> {{ post.likes || 0 }}
                         </button>
                     </div>
-
-                    <!-- 评论 -->
-                    <div v-if="post.showComments" class="comment-area">
-                        <div v-if="!post.commentList?.length" style="text-align:center;font-size:12px;color:#ccc;margin:10px 0;">暂无评论</div>
-                        <div style="max-height:200px;overflow-y:auto;">
-                            <div v-for="cmt in post.commentList" :key="cmt.id" class="comment-item" @click="triggerReply(post, cmt)">
-                                <img :src="cmt.avatar||`https://api.dicebear.com/7.x/avataaars/svg?seed=${cmt.username}`" style="width:24px;height:24px;border-radius:50%;">
-                                <div class="comment-content">
-                                    <div class="comment-name">
-                                        {{cmt.nickname}}
-                                        <span v-if="user && (user.isAdmin || user.username===cmt.username)" @click.stop="deleteComment(post, cmt.id)" style="float:right;color:#f87171;cursor:pointer;">删除</span>
+                    <div v-if="post.showComments" class="mt-3 pt-3 border-t border-dashed border-slate-100 animate-fade-in">
+                        <div v-if="post.loadingComments" class="space-y-3 py-2"><div class="flex gap-2 items-center"><div class="skeleton w-6 h-6 rounded-full shrink-0"></div><div class="skeleton h-4 w-24"></div></div></div>
+                        <div v-else>
+                            <div v-if="!post.commentList?.length" class="text-center text-xs text-slate-300 py-4">沙发空缺中，快来抢~</div>
+                            <div class="space-y-3 mb-3 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+                                <div v-for="cmt in post.commentList" :key="cmt.id" class="flex gap-2 text-xs group/cmt p-1" @touchstart="startLongPress(post, cmt)" @touchend="endLongPress" @touchmove="endLongPress">
+                                    <img @click.stop="handleAvatarClick(cmt.username)" :src="cmt.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cmt.username}`" class="w-7 h-7 rounded-full bg-slate-100 shrink-0 border border-white cursor-pointer">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex justify-between items-baseline">
+                                            <span class="font-bold text-slate-700">{{ cmt.nickname }}</span>
+                                            <div class="flex items-center gap-3">
+                                                <button v-if="user && user.username !== cmt.username" @click="triggerReply(post, cmt)" class="hidden md:block text-rose-400 hover:text-rose-600 font-bold opacity-0 group-hover/cmt:opacity-100 transition-opacity">↩︎ 回复</button>
+                                                <button v-if="user && (user.isAdmin || user.username === cmt.username)" @click="deleteComment(post, cmt.id)" class="text-slate-300 hover:text-red-500 font-bold">删除</button>
+                                            </div>
+                                        </div>
+                                        <p class="text-slate-600 mt-0.5 leading-relaxed break-all">{{ cmt.content }}</p>
                                     </div>
-                                    <div>{{cmt.content}}</div>
                                 </div>
                             </div>
+                            <div class="flex gap-2 items-center mt-2">
+                                <input v-model="post.newCommentInput" :ref="'input-'+post.id" placeholder="友善评论..." class="flex-1 bg-slate-50 border border-slate-100 rounded-full px-4 py-2 text-xs focus:bg-white focus:ring-2 focus:ring-rose-100 outline-none transition-all">
+                                <button @click="submitComment(post)" class="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-black shadow-md active:scale-95 transition-all"><i class="ri-send-plane-fill text-xs"></i></button>
+                            </div>
                         </div>
-                        <div style="display:flex;gap:8px;margin-top:8px;">
-                            <input v-model="post.newCommentInput" :id="'input-'+post.id" class="input-field" style="margin:0;" placeholder="评论...">
-                            <button @click="submitComment(post)" style="background:#0f172a;color:white;border:none;border-radius:50%;width:36px;height:36px;"><i class="ri-send-plane-fill"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="fixed right-5 z-40 flex flex-col gap-3 fab-safe">
+        <button v-show="scrollY > 300" @click="scrollToTop" class="w-10 h-10 bg-white rounded-full shadow-lg text-slate-400 flex items-center justify-center border border-slate-50"><i class="ri-arrow-up-line"></i></button>
+        <button @click="checkAuthAndPost" class="w-12 h-12 bg-slate-900 text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform"><i class="ri-add-line text-xl"></i></button>
+    </div>
+
+    <!-- 消息中心 -->
+    <div v-if="showInboxModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white w-full max-w-xs rounded-3xl shadow-2xl flex flex-col h-[60vh]">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="font-extrabold text-lg">消息中心</h3>
+                <button @click="showInboxModal=false" class="text-slate-400"><i class="ri-close-line text-xl"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-2">
+                <div v-if="!inboxList.length" class="text-center text-slate-300 text-xs py-10">暂无私信</div>
+                <div v-for="chat in inboxList" :key="chat.chatId" class="flex gap-3 items-center p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors relative group" @click="openChat({username: chat.otherUsername, nickname: chat.otherNickname, avatar: chat.otherAvatar}, chat.chatId)">
+                    <img :src="chat.otherAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chat.otherUsername}`" class="w-10 h-10 rounded-full bg-slate-100 object-cover border border-slate-200">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-sm text-slate-700">{{ chat.otherNickname }}</span>
+                            <button @click.stop="deleteChatSession(chat.chatId)" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="ri-delete-bin-line"></i></button>
                         </div>
+                        <p class="text-xs text-slate-500 truncate mt-0.5">{{ chat.lastMsg }}</p>
+                    </div>
+                    <div v-if="chat.unread > 0" class="absolute top-3 right-3 w-2 h-2 bg-red-500 rounded-full"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 聊天窗口 (防闪烁) -->
+    <div v-if="showChatModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl flex flex-col h-[70vh]">
+            <div class="p-4 border-b flex justify-between items-center bg-slate-50 rounded-t-3xl">
+                <div class="flex items-center gap-2">
+                    <button @click="showChatModal=false" class="text-slate-400 hover:text-slate-600"><i class="ri-arrow-left-line text-xl"></i></button>
+                    <div class="flex items-center gap-2">
+                        <img :src="chatTarget.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chatTarget.username}`" class="w-6 h-6 rounded-full bg-white border">
+                        <span class="font-bold text-sm">{{ chatTarget.nickname }}</span>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- 悬浮按钮 -->
-    <div class="fab-group">
-        <button v-show="scrollY>300" class="fab white" @click="scrollToTop"><i class="ri-arrow-up-line"></i></button>
-        <button class="fab" @click="checkAuthAndPost"><i class="ri-add-line"></i></button>
-    </div>
-
-    <!-- 弹窗：登录 -->
-    <div v-if="showAuthModal" class="modal-mask">
-        <div class="modal-box">
-            <h3 style="text-align:center;margin-bottom:20px;font-size:18px;font-weight:900;">{{authMode==='login'?'欢迎回来':'注册账号'}}</h3>
-            <div v-if="authMode==='register'" style="text-align:center;margin-bottom:10px;" @click="$refs.avatarInput.click()">
-                <div style="width:60px;height:60px;background:#f1f5f9;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-                    <img v-if="authForm.avatar" :src="authForm.avatar" style="width:100%;height:100%;object-fit:cover;">
-                    <i v-else class="ri-camera-fill" style="font-size:24px;color:#cbd5e1;"></i>
-                </div>
-                <input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarUpload">
-            </div>
-            <input v-model="authForm.username" class="input-field" placeholder="账号 (>=8位)">
-            <input v-model="authForm.password" type="password" class="input-field" placeholder="密码 (>=6位)">
-            <input v-if="authMode==='register'" v-model="authForm.nickname" class="input-field" placeholder="昵称">
-            <button class="btn-primary" @click="handleAuth" :disabled="isAuthing">{{isAuthing?'处理中...':'确定'}}</button>
-            <div style="text-align:center;margin-top:15px;font-size:12px;color:#94a3b8;">
-                <span @click="authMode=authMode==='login'?'register':'login'" style="cursor:pointer;">切换模式</span>
-                <span style="margin:0 10px;">|</span>
-                <span @click="showAuthModal=false" style="cursor:pointer;">关闭</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- 弹窗：聊天 -->
-    <div v-if="showChatModal" class="modal-mask">
-        <div class="modal-box chat-modal">
-            <div class="chat-header">
-                <i class="ri-arrow-left-line" style="font-size:20px;cursor:pointer;" @click="showChatModal=false"></i>
-                <span style="font-weight:bold;">{{chatTarget.nickname}}</span>
-                <div style="width:20px;"></div>
-            </div>
-            <div class="chat-body" ref="chatContainer">
-                <div v-if="!chatMessages.length" style="text-align:center;color:#ccc;margin-top:20px;font-size:12px;">打个招呼吧</div>
-                <div v-for="msg in chatMessages" :key="msg.id" class="msg-row" :class="msg.sender===user.username?'mine':'other'">
-                    <img :src="(msg.sender===user.username?user.avatar:chatTarget.avatar)||`https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.sender}`" class="msg-avatar">
-                    <div style="display:flex;flex-direction:column;max-width:75%;">
-                        <div class="msg-bubble" :style="{opacity: msg.pending?0.6:1}">{{msg.content}}</div>
-                        <div class="msg-time" v-if="msg.timeStr">{{msg.timeStr}}</div>
+            <div class="flex-1 overflow-y-auto p-4 bg-slate-50" ref="chatContainer">
+                <div v-for="msg in chatMessages" :key="msg.id" class="chat-row" :class="[msg.sender === user.username ? 'mine' : 'other', msg.pending ? 'chat-pending' : '']">
+                    <img :src="(msg.sender === user.username ? user.avatar : chatTarget.avatar) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.sender}`" class="chat-avatar">
+                    <div class="chat-bubble-container">
+                        <div class="chat-bubble">
+                            {{ msg.content }}
+                            <div v-if="msg.pending" class="absolute -left-4 top-2 text-slate-400 text-xs"><i class="ri-loader-4-line animate-spin"></i></div>
+                        </div>
+                        <span v-if="msg.timeStr && !msg.pending" class="chat-time">{{ msg.timeStr }}</span>
                     </div>
                 </div>
             </div>
-            <div class="chat-footer">
-                <input v-model="chatInput" id="chat-input" class="input-field" style="margin:0;" placeholder="发消息..." @keyup.enter="sendChat">
-                <button @click="sendChat" style="background:#0f172a;color:white;border:none;border-radius:50%;width:40px;height:40px;flex-shrink:0;"><i class="ri-send-plane-fill"></i></button>
+            <div class="p-3 border-t bg-white rounded-b-3xl flex gap-2">
+                <input v-model="chatInput" @keyup.enter="sendChat" placeholder="发消息..." class="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-slate-200 transition-all">
+                <button @click="sendChat" :disabled="!chatInput" class="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center disabled:opacity-50 transition-transform active:scale-90"><i class="ri-send-plane-fill"></i></button>
             </div>
         </div>
     </div>
 
-    <!-- 弹窗：消息列表 -->
-    <div v-if="showInboxModal" class="modal-mask">
-        <div class="modal-box" style="height:60vh;">
-            <div style="display:flex;justify-content:space-between;margin-bottom:15px;">
-                <h3 style="font-weight:bold;">消息</h3>
-                <i class="ri-close-line" @click="showInboxModal=false" style="font-size:20px;"></i>
-            </div>
-            <div v-if="!inboxList.length" style="text-align:center;color:#ccc;font-size:12px;">暂无消息</div>
-            <div style="overflow-y:auto;">
-                <div v-for="c in inboxList" :key="c.chatId" @click="openChat({username:c.otherUsername, nickname:c.otherNickname, avatar:c.otherAvatar}, c.chatId)" style="display:flex;gap:10px;padding:10px;border-bottom:1px solid #f1f5f9;cursor:pointer;position:relative;">
-                    <img :src="c.otherAvatar||`https://api.dicebear.com/7.x/avataaars/svg?seed=${c.otherUsername}`" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">
-                    <div style="flex:1;overflow:hidden;">
-                        <div style="font-weight:bold;font-size:14px;">{{c.otherNickname}}</div>
-                        <div style="color:#94a3b8;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{c.lastMsg}}</div>
-                    </div>
-                    <div v-if="c.unread>0" style="background:red;color:white;font-size:10px;height:16px;min-width:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;">{{c.unread}}</div>
-                    <i class="ri-delete-bin-line" style="color:#cbd5e1;" @click.stop="deleteChatSession(c.chatId)"></i>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Other Modals 省略... -->
+    <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm"><div class="bg-white w-full max-w-xs rounded-2xl p-6 shadow-2xl"><h3 class="text-center font-bold text-lg mb-4">{{ authMode==='login'?'登录':'注册' }}</h3><div class="space-y-3"><div v-if="authMode==='register'" class="flex justify-center" @click="$refs.avatarInput.click()"><div class="w-16 h-16 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 overflow-hidden relative"><img v-if="authForm.avatar" :src="authForm.avatar" class="w-full h-full object-cover"><i v-else class="ri-camera-fill text-xl"></i></div><input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarUpload"></div><input v-model="authForm.username" :placeholder="authMode==='register' && authForm.username!=='admin' ? '账号 (≥8位)' : '账号'" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><input v-model="authForm.password" type="password" placeholder="密码 (≥6位)" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><input v-if="authMode==='register'" v-model="authForm.nickname" placeholder="昵称" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><button @click="handleAuth" :disabled="isAuthing" class="w-full bg-slate-900 text-white py-2 rounded-lg text-xs font-bold">{{ isAuthing?'处理中...':'确定' }}</button></div><div class="flex justify-between mt-4 text-xs text-slate-400"><button @click="authMode = authMode==='login'?'register':'login'">切换{{ authMode==='login'?'注册':'登录' }}</button><button @click="showAuthModal=false">关闭</button></div></div></div>
+    <div v-if="showPostModal" class="fixed inset-0 z-50 bg-white flex flex-col"><div class="flex justify-between items-center p-4 border-b"><button @click="showPostModal=false" class="text-slate-500">取消</button><h3 class="font-bold">发布动态</h3><button @click="submitPost" :disabled="submitting" class="bg-rose-500 text-white px-4 py-1 rounded-full text-xs font-bold">{{ submitting?'...':'发布' }}</button></div><div class="p-4 flex-1 overflow-y-auto"><textarea v-model="postForm.content" class="w-full h-32 text-sm outline-none placeholder-slate-300 resize-none" placeholder="说点什么..."></textarea><div class="flex flex-wrap gap-2 mb-4"><div v-for="(img,i) in postForm.images" :key="i" class="w-20 h-20 rounded bg-slate-100 relative overflow-hidden"><img :src="img" class="w-full h-full object-cover"><button @click="removeImage(i)" class="absolute top-0 right-0 bg-black/50 text-white w-5 h-5 flex items-center justify-center text-xs">&times;</button></div><div v-if="postForm.images.length<3" @click="$refs.pInput.click()" class="w-20 h-20 rounded border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-300"><i class="ri-add-line text-xl"></i></div><input type="file" ref="pInput" hidden accept="image/*" @change="handlePostImageUpload"></div><div class="space-y-4"><div><label class="text-xs font-bold text-slate-400 block mb-2">分区</label><div class="flex flex-wrap gap-2"><button v-for="g in games.slice(1)" :key="g" @click="postForm.game=g" class="px-3 py-1 rounded border text-xs" :class="postForm.game===g?'bg-slate-800 text-white':'bg-white text-slate-500'">{{ g }}</button></div></div><div><label class="text-xs font-bold text-slate-400 block mb-2">要求</label><input v-model="postForm.requirement" class="w-full bg-slate-50 rounded px-3 py-2 text-xs outline-none" placeholder="选填..."></div></div></div></div>
+    <div v-if="preview.show" class="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center" @click="preview.show=false"><img :src="preview.list[preview.idx]" class="max-w-full max-h-screen object-contain"></div>
+    <div v-if="showProfileModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-fade-in"><div class="bg-white w-full max-w-xs rounded-3xl shadow-2xl p-6 overflow-y-auto max-h-[90vh]"><div class="flex justify-between items-center mb-4"><h3 class="font-extrabold text-lg text-slate-800">{{ isMyProfile ? '我的资料' : '用户资料' }}</h3><button @click="showProfileModal=false" class="text-slate-400 hover:text-slate-600"><i class="ri-close-line text-xl"></i></button></div><div class="space-y-4 text-center"><div class="flex justify-center"><div class="relative w-24 h-24 group" :class="{'cursor-pointer': isMyProfile}" @click="isMyProfile && $refs.profileAvatarInput.click()"><img :src="viewingUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${viewingUser.username}`" class="w-full h-full rounded-full object-cover border-4 border-white shadow-lg"><div v-if="isMyProfile" class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"><i class="ri-camera-fill text-2xl"></i></div><input v-if="isMyProfile" type="file" ref="profileAvatarInput" hidden accept="image/*" @change="handleProfileAvatarChange"></div></div><div><h2 class="font-bold text-xl text-slate-800">{{ viewingUser.nickname }}</h2><p class="text-xs text-slate-400 font-mono mt-1">@{{ viewingUser.username }}</p></div><div v-if="!isMyProfile" class="space-y-3 text-left bg-slate-50 p-4 rounded-2xl"><div class="flex justify-between text-sm"><span class="text-slate-400">性别</span> <span class="font-bold">{{ genderMap[viewingUser.gender] || '保密' }}</span></div><div class="flex justify-between text-sm"><span class="text-slate-400">想找</span> <span class="font-bold">{{ targetMap[viewingUser.target] || '不限' }}</span></div><div v-if="viewingUser.qq" class="flex justify-between text-sm items-center"><span class="text-slate-400">QQ</span> <button @click="copyText(viewingUser.qq, 'QQ')" class="text-blue-500 font-bold text-xs bg-blue-50 px-2 py-0.5 rounded">复制</button></div><div v-if="viewingUser.wx" class="flex justify-between text-sm items-center"><span class="text-slate-400">微信</span> <button @click="copyText(viewingUser.wx, '微信')" class="text-green-500 font-bold text-xs bg-green-50 px-2 py-0.5 rounded">复制</button></div><button @click="openChat(viewingUser)" class="w-full bg-slate-800 text-white py-2.5 rounded-xl font-bold mt-2 shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"><i class="ri-message-3-line"></i> 发私信</button></div><div v-else class="space-y-4 text-left"><div><label class="text-xs font-bold text-slate-400 block mb-2">我的性别</label><div class="flex gap-2"><button @click="profileForm.gender='male'" class="flex-1 py-2 rounded-lg text-xs font-bold border transition-all" :class="profileForm.gender==='male'?'bg-blue-50 border-blue-200 text-blue-500':'bg-white border-slate-200 text-slate-400'">男生</button><button @click="profileForm.gender='female'" class="flex-1 py-2 rounded-lg text-xs font-bold border transition-all" :class="profileForm.gender==='female'?'bg-pink-50 border-pink-200 text-pink-500':'bg-white border-slate-200 text-slate-400'">女生</button></div></div><div><label class="text-xs font-bold text-slate-400 block mb-2">想找</label><div class="flex gap-2"><button @click="profileForm.target='male'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='male'?'bg-blue-50 border-blue-200 text-blue-500':'bg-white border-slate-200 text-slate-400'">找男生</button><button @click="profileForm.target='female'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='female'?'bg-pink-50 border-pink-200 text-pink-500':'bg-white border-slate-200 text-slate-400'">找女生</button><button @click="profileForm.target='all'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='all'?'bg-purple-50 border-purple-200 text-purple-500':'bg-white border-slate-200 text-slate-400'">都可以</button></div></div><div class="space-y-2"><div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100"><i class="ri-qq-fill text-blue-400"></i><input v-model="profileForm.qq" placeholder="QQ号 (选填)" class="bg-transparent text-xs w-full outline-none"></div><div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100"><i class="ri-wechat-fill text-green-400"></i><input v-model="profileForm.wx" placeholder="微信号 (选填)" class="bg-transparent text-xs w-full outline-none"></div></div><button @click="handleProfileUpdate" :disabled="isUpdatingProfile" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-all disabled:opacity-50">{{ isUpdatingProfile ? '保存中...' : '保存资料' }}</button><button @click="logout" class="w-full text-xs text-red-400 hover:text-red-600 py-2">退出登录</button></div></div></div></div>
 
-    <!-- 弹窗：个人资料 -->
-    <div v-if="showProfileModal" class="modal-mask">
-        <div class="modal-box">
-            <div style="display:flex;justify-content:space-between;margin-bottom:15px;">
-                <h3 style="font-weight:bold;">{{isMyProfile?'编辑资料':'用户资料'}}</h3>
-                <i class="ri-close-line" @click="showProfileModal=false" style="font-size:20px;"></i>
-            </div>
-            <div style="text-align:center;margin-bottom:15px;">
-                <img :src="viewingUser.avatar||`https://api.dicebear.com/7.x/avataaars/svg?seed=${viewingUser.username}`" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid white;box-shadow:0 4px 10px rgba(0,0,0,0.1);" @click="isMyProfile && $refs.profileAvatarInput.click()">
-                <div style="font-weight:900;font-size:18px;margin-top:8px;">{{viewingUser.nickname}}</div>
-                <div style="font-size:12px;color:#94a3b8;">@{{viewingUser.username}}</div>
-                <input v-if="isMyProfile" type="file" ref="profileAvatarInput" hidden accept="image/*" @change="handleProfileAvatarChange">
-            </div>
-            
-            <!-- 查看模式 -->
-            <div v-if="!isMyProfile" style="display:flex;flex-direction:column;gap:10px;">
-                <div style="background:#f8fafc;padding:10px;border-radius:8px;font-size:12px;">
-                    <div style="display:flex;justify-content:space-between;"><span>性别</span><b>{{genderMap[viewingUser.gender]||'保密'}}</b></div>
-                    <div style="display:flex;justify-content:space-between;margin-top:5px;"><span>想找</span><b>{{targetMap[viewingUser.target]||'不限'}}</b></div>
-                </div>
-                <div v-if="viewingUser.qq" style="display:flex;justify-content:space-between;font-size:12px;background:#eff6ff;padding:8px;border-radius:8px;color:#3b82f6;"><span>QQ</span><span @click="copyText(viewingUser.qq,'QQ')">{{viewingUser.qq}} (复制)</span></div>
-                <div v-if="viewingUser.wx" style="display:flex;justify-content:space-between;font-size:12px;background:#f0fdf4;padding:8px;border-radius:8px;color:#22c55e;"><span>微信</span><span @click="copyText(viewingUser.wx,'VX')">{{viewingUser.wx}} (复制)</span></div>
-                <button class="btn-primary" @click="openChat(viewingUser)">发私信</button>
-            </div>
-            
-            <!-- 编辑模式 -->
-            <div v-else style="display:flex;flex-direction:column;gap:10px;">
-                <input v-model="profileForm.qq" class="input-field" placeholder="QQ (选填)">
-                <input v-model="profileForm.wx" class="input-field" placeholder="微信 (选填)">
-                <div style="display:flex;gap:5px;">
-                    <button style="flex:1;padding:8px;border-radius:8px;border:1px solid #e2e8f0;background:white;font-size:12px;" @click="profileForm.gender='male'" :style="profileForm.gender==='male'?'border-color:#3b82f6;color:#3b82f6':''">我是男生</button>
-                    <button style="flex:1;padding:8px;border-radius:8px;border:1px solid #e2e8f0;background:white;font-size:12px;" @click="profileForm.gender='female'" :style="profileForm.gender==='female'?'border-color:#ec4899;color:#ec4899':''">我是女生</button>
-                </div>
-                <button class="btn-primary" @click="handleProfileUpdate" :disabled="isUpdatingProfile">保存</button>
-                <button style="width:100%;padding:10px;background:none;border:none;color:#ef4444;font-size:12px;" @click="logout">退出登录</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 发布弹窗 -->
-    <div v-if="showPostModal" class="modal-mask">
-        <div class="modal-box" style="max-width:400px;">
-            <h3 style="font-weight:bold;margin-bottom:15px;">发布扩列</h3>
-            <textarea v-model="postForm.content" class="input-field" style="height:100px;resize:none;" placeholder="说点什么..."></textarea>
-            <div style="display:flex;gap:8px;margin-bottom:10px;">
-                <div v-for="(img,i) in postForm.images" :key="i" style="width:60px;height:60px;border-radius:8px;overflow:hidden;position:relative;">
-                    <img :src="img" style="width:100%;height:100%;object-fit:cover;">
-                    <div @click="removeImage(i)" style="position:absolute;top:0;right:0;background:rgba(0,0,0,0.5);color:white;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;">x</div>
-                </div>
-                <div v-if="postForm.images.length<3" @click="$refs.pInput.click()" style="width:60px;height:60px;border:2px dashed #cbd5e1;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#cbd5e1;font-size:24px;">+</div>
-                <input type="file" ref="pInput" hidden accept="image/*" @change="handlePostImageUpload">
-            </div>
-            <div style="display:flex;gap:5px;overflow-x:auto;padding-bottom:5px;">
-                <div v-for="g in games.slice(1)" :key="g" style="padding:4px 10px;border-radius:12px;font-size:10px;white-space:nowrap;border:1px solid #e2e8f0;" :style="postForm.game===g?'background:#0f172a;color:white':''" @click="postForm.game=g">{{g}}</div>
-            </div>
-            <input v-model="postForm.requirement" class="input-field" style="margin-top:10px;" placeholder="要求 (选填)">
-            <div style="display:flex;gap:10px;margin-top:10px;">
-                <button style="flex:1;padding:10px;border-radius:12px;border:1px solid #e2e8f0;background:white;" @click="showPostModal=false">取消</button>
-                <button class="btn-primary" style="flex:1;margin:0;" @click="submitPost" :disabled="submitting">发布</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 图片预览 -->
-    <div v-if="preview.show" class="modal-mask" @click="preview.show=false" style="background:black;">
-        <img :src="preview.list[preview.idx]" style="max-width:100%;max-height:100%;">
-    </div>
 </div>
 
 <script>
     const { createApp, ref, onMounted, watch, nextTick, computed } = Vue;
 
-    createApp({
+    const app = createApp({
         setup() {
             const API = '/api/cp';
             const user = ref(null);
@@ -453,251 +253,201 @@
             const error = ref('');
             const scrollY = ref(0);
             const notice = "欢迎来到 CPDD 扩列小站！严禁发布违规信息。";
-            const windowWidth = ref(window.innerWidth);
 
-            // Modals
             const showAuthModal = ref(false);
             const authMode = ref('login');
             const showPostModal = ref(false);
             const showProfileModal = ref(false);
             const showInboxModal = ref(false);
             const showChatModal = ref(false);
-            const preview = ref({show:false, list:[], idx:0});
-
-            // Forms
-            const authForm = ref({username:'', password:'', nickname:'', avatar:''});
-            const postForm = ref({content:'', game:'王者荣耀', requirement:'', images:[]});
-            const profileForm = ref({nickname:'', avatar:'', gender:'', target:'all', qq:'', wx:''});
             
-            // Chat
+            const submitting = ref(false);
+            const isAuthing = ref(false);
+            const isUpdatingProfile = ref(false);
+            const preview = ref({show:false, list:[], idx:0});
+            const viewingUser = ref({});
+            const isMyProfile = ref(false);
             const inboxList = ref([]);
-            const chatMessages = ref([]);
             const pendingMessages = ref([]);
+            const serverMessages = ref([]);
             const chatTarget = ref({});
             const chatInput = ref('');
             const totalUnread = ref(0);
             let chatPoller = null;
             let inboxPoller = null;
 
-            // Status
-            const submitting = ref(false);
-            const isAuthing = ref(false);
-            const isUpdatingProfile = ref(false);
-            const viewingUser = ref({});
-            const isMyProfile = ref(false);
-
             const games = ['全部', '王者荣耀', '原神', '光遇', '英雄联盟', '和平精英', '蛋仔派对', '无畏契约', '其他'];
             const filterGame = ref('全部');
+            const authForm = ref({username:'', password:'', nickname:'', avatar:''});
+            const postForm = ref({content:'', game:'王者荣耀', requirement:'', images:[]});
+            const profileForm = ref({ nickname:'', avatar:'', gender:'', target:'all', qq:'', wx:'' });
             const columns = ref([[], [], []]);
-            
+            const windowWidth = ref(window.innerWidth);
             const genderMap = { male:'男生', female:'女生', secret:'保密' };
             const targetMap = { male:'找男生', female:'找女生', all:'不限' };
 
-            // --- 核心逻辑 ---
-            const updateColumns = () => {
-                if(!Array.isArray(posts.value)) { posts.value=[]; return; }
-                const cols = windowWidth.value < 640 ? 1 : (windowWidth.value < 1024 ? 2 : 3);
-                const res = Array.from({length: cols}, () => []);
-                const filtered = filterGame.value==='全部' ? posts.value : posts.value.filter(p => p.game === filterGame.value);
-                filtered.forEach((p, i) => res[i % cols].push(p));
-                columns.value = res;
-            };
-
-            const fetchPosts = async () => {
-                loading.value = true;
-                try {
-                    const res = await fetch(API);
-                    const data = await res.json();
-                    if(Array.isArray(data)) posts.value = data;
-                    else throw new Error('数据异常');
-                } catch(e) { error.value = e.message; posts.value = []; }
-                loading.value = false;
-            };
-
-            // --- 聊天逻辑 ---
-            const currentChatId = computed(() => {
-                if (!user.value || !chatTarget.value.username) return null;
-                return [user.value.username, chatTarget.value.username].sort().join('_');
-            });
-
-            const mergedMessages = computed(() => {
-                return [...serverMessages.value, ...pendingMessages.value].sort((a,b) => {
-                    const ta = a.timestamp?._seconds ? a.timestamp._seconds * 1000 : a.timestamp;
-                    const tb = b.timestamp?._seconds ? b.timestamp._seconds * 1000 : b.timestamp;
-                    return ta - tb;
-                });
-            });
-
-            const serverMessages = ref([]);
-
-            const fetchChatHistory = async () => {
-                if (!showChatModal.value) return;
-                const reqId = currentChatId.value;
-                const res = await fetch(`${API}?action=chat_history&u1=${user.value.username}&u2=${chatTarget.value.username}`);
-                if (reqId !== currentChatId.value) return;
-                const msgs = await res.json();
-                if(Array.isArray(msgs)) {
-                    serverMessages.value = msgs;
-                    pendingMessages.value = pendingMessages.value.filter(p => 
-                        !msgs.some(s => s.content === p.content && s.sender === p.sender && Math.abs(p.timestamp - (s.timestamp?s.timestamp._seconds*1000:0)) < 10000)
-                    );
-                    nextTick(() => {
-                        const el = app._instance.refs.chatContainer;
-                        // 简单逻辑：只要有新消息就滚动到底部
-                        if(el) el.scrollTop = el.scrollHeight;
-                    });
-                }
-            };
-
-            const sendChat = async () => {
-                if(!chatInput.value.trim()) return;
-                const txt = chatInput.value; chatInput.value = '';
-                const now = Date.now();
-                pendingMessages.value.push({ id: now, sender: user.value.username, content: txt, timestamp: now, pending: true });
-                
-                // 立即滚动
-                nextTick(() => { const el = app._instance.refs.chatContainer; if(el) el.scrollTop = el.scrollHeight; });
-
-                try {
-                    await fetch(`${API}?action=chat_send`, {
-                        method:'POST', body:JSON.stringify({ user:user.value, toUsername:chatTarget.value.username, content:txt })
-                    });
-                    fetchChatHistory();
-                } catch(e) { alert('发送失败'); pendingMessages.value = pendingMessages.value.filter(m=>m.id!==now); }
-            };
-
-            const openChat = async (target, chatId) => {
-                showProfileModal.value = false; showInboxModal.value = false;
-                chatTarget.value = target; serverMessages.value = []; pendingMessages.value = [];
-                showChatModal.value = true;
-                if(chatId) {
-                    const c = inboxList.value.find(x=>x.chatId===chatId);
-                    if(c && c.unread>0) { totalUnread.value -= c.unread; c.unread = 0; }
-                    await fetch(`${API}?action=chat_read`, {method:'POST', body:JSON.stringify({user:user.value, chatId})});
-                }
-                fetchChatHistory();
-                if(chatPoller) clearInterval(chatPoller);
-                chatPoller = setInterval(fetchChatHistory, 3000);
-                nextTick(() => document.getElementById('chat-input')?.focus());
-            };
-            
             const checkUnread = async () => {
                 if (!user.value) return;
                 try {
                     const res = await fetch(`${API}?action=chat_inbox&username=${user.value.username}`);
                     const list = await res.json();
                     if(Array.isArray(list)) {
-                        totalUnread.value = list.reduce((s, c) => s + (c.unread || 0), 0);
+                        const count = list.reduce((sum, chat) => sum + (chat.unread || 0), 0);
+                        totalUnread.value = count;
                         inboxList.value = list;
                     }
-                } catch(e){}
+                } catch(e) {}
             };
-
-            const openInbox = () => { if(!user.value) return showAuthModal.value=true; showInboxModal.value=true; checkUnread(); };
-
-            // --- 其他基础逻辑 ---
-            const handleAvatarClick = async (u) => {
-                if(!user.value) return showAuthModal.value=true;
-                if(u===user.value.username) {
-                    viewingUser.value=user.value; isMyProfile.value=true;
-                    profileForm.value={...user.value, gender:user.value.gender||'', target:user.value.target||'all'};
-                } else {
-                    try {
-                        const res = await fetch(`${API}?action=get_user_profile&username=${u}`);
-                        if(res.ok) { viewingUser.value=await res.json(); isMyProfile.value=false; }
-                    } catch(e){ return; }
-                }
-                showProfileModal.value=true;
-            };
-
-            const handleAuth = async () => {
-                if(!authForm.value.username) return alert('请输入账号');
-                isAuthing.value = true;
-                try {
-                    const res = await fetch(`${API}?action=${authMode.value}`, {method:'POST', body:JSON.stringify(authForm.value)});
-                    const d = await res.json();
-                    if(d.error) alert(d.error);
-                    else { user.value = d.user; localStorage.setItem('cp_user', JSON.stringify(d.user)); showAuthModal.value = false; fetchPosts(); }
-                } catch(e){ alert('网络错误'); }
-                isAuthing.value = false;
-            };
-
-            const compress = (file) => new Promise(resolve => {
-                const r = new FileReader(); r.onload = e => {
-                    const img = new Image(); img.onload = () => {
-                        const cvs = document.createElement('canvas');
-                        let w=img.width, h=img.height; const MAX=1200;
-                        if(w>MAX){ h*=MAX/w; w=MAX; } cvs.width=w; cvs.height=h;
-                        cvs.getContext('2d').drawImage(img,0,0,w,h);
-                        let q=0.9, d=cvs.toDataURL('image/jpeg', q);
-                        while(d.length>300000 && q>0.3){ q-=0.1; d=cvs.toDataURL('image/jpeg', q); }
-                        resolve(d);
-                    }; img.src = e.target.result;
-                }; r.readAsDataURL(file);
-            });
-
-            const handleAvatarUpload = async (e) => { if(e.target.files[0]) authForm.value.avatar = await compress(e.target.files[0]); };
-            const handleProfileAvatarChange = async (e) => { if(e.target.files[0]) profileForm.value.avatar = await compress(e.target.files[0]); };
-            const handlePostImageUpload = async (e) => { if(e.target.files[0] && postForm.value.images.length<3) postForm.value.images.push(await compress(e.target.files[0])); e.target.value=''; };
-
-            const submitPost = async () => {
-                if(!postForm.value.content) return alert('写点什么');
-                submitting.value = true;
-                try {
-                    const res = await fetch(`${API}?action=create_post`, {method:'POST', body:JSON.stringify({user:user.value, ...postForm.value})});
-                    if(res.ok) { showPostModal.value=false; postForm.value={content:'', game:'王者荣耀', requirement:'', images:[]}; fetchPosts(); }
-                    else alert('发布失败');
-                } catch(e){ alert('网络错误'); }
-                submitting.value = false;
-            };
-            
-            const deletePost = async (id) => { if(confirm('删？')) { await fetch(`${API}?action=delete_post`, {method:'POST', body:JSON.stringify({id, user:user.value})}); fetchPosts(); } };
-            const handleProfileUpdate = async () => { isUpdatingProfile.value = true; await fetch(`${API}?action=update_profile`, {method:'POST', body:JSON.stringify({username:user.value.username, user:user.value, ...profileForm.value})}); user.value={...user.value, ...profileForm.value}; localStorage.setItem('cp_user', JSON.stringify(user.value)); isUpdatingProfile.value = false; alert('保存成功'); showProfileModal.value = false; };
-            
-            const triggerReply = (p, c) => { if(!user.value) return showAuthModal.value=true; p.newCommentInput = `回复 @${c.nickname} : `; nextTick(()=>document.getElementById('input-'+p.id)?.focus()); };
-            const submitComment = async (p) => { if(!user.value) return showAuthModal.value=true; if(!p.newCommentInput) return; const txt = p.newCommentInput; p.newCommentInput=''; if(!p.commentList) p.commentList=[]; p.commentList.push({id:Date.now(), nickname:user.value.nickname, username:user.value.username, content:txt}); await fetch(`${API}?action=add_comment`, {method:'POST', body:JSON.stringify({postId:p.id, user:user.value, content:txt})}); };
-            const deleteComment = async (p, cid) => { if(confirm('删？')) { await fetch(`${API}?action=delete_comment`, {method:'POST', body:JSON.stringify({postId:p.id, commentId:cid, user:user.value})}); p.commentList = p.commentList.filter(c=>c.id!==cid); } };
-            const toggleComments = async (p) => { p.showComments=!p.showComments; if(p.showComments && !p.loaded) { try { p.commentList=await (await fetch(`${API}?action=get_comments&postId=${p.id}`)).json(); p.loaded=true; } catch(e){} } };
-            const isLiked = (p) => { if(!p.likedIds) return false; if(user.value) return p.likedIds.includes('user:'+user.value.username); const l=JSON.parse(localStorage.getItem('cp_likes')||'[]'); return l.includes(p.id); };
-            const handleLike = async (p) => { 
-                const liked = isLiked(p);
-                if(liked) { p.likes--; if(user.value) p.likedIds=p.likedIds.filter(x=>x!=='user:'+user.value.username); else { const l=JSON.parse(localStorage.getItem('cp_likes')||'[]'); localStorage.setItem('cp_likes', JSON.stringify(l.filter(x=>x!==p.id))); p.likedIds=[]; } }
-                else { p.likes++; if(user.value) { if(!p.likedIds) p.likedIds=[]; p.likedIds.push('user:'+user.value.username); } else { const l=JSON.parse(localStorage.getItem('cp_likes')||'[]'); l.push(p.id); localStorage.setItem('cp_likes', JSON.stringify(l)); if(!p.likedIds) p.likedIds=[]; p.likedIds.push('temp'); } }
-                await fetch(`${API}?action=like`, {method:'POST', body:JSON.stringify({id:p.id, user:user.value})});
-            };
-
-            const logout = () => { user.value = null; localStorage.removeItem('cp_user'); showProfileModal.value = false; };
-            const copyText = (t, l) => { navigator.clipboard.writeText(t).then(()=>alert(`复制${l}成功`)); };
-            const removeImage = (i) => postForm.value.images.splice(i,1);
-            const previewImage = (l,i) => preview.value = {show:true, list:l, idx:i};
-            const scrollToTop = () => window.scrollTo({top:0, behavior:'smooth'});
-            const checkAuthAndPost = () => user.value ? showPostModal.value = true : showAuthModal.value = true;
-            const deleteChatSession = async (cid) => { if(confirm('删？')) { await fetch(`${API}?action=delete_chat_session`, {method:'POST', body:JSON.stringify({user:user.value, chatId:cid})}); inboxList.value=inboxList.value.filter(x=>x.chatId!==cid); } };
-
-            watch([filterGame, posts], updateColumns);
-            window.onresize = () => { windowWidth.value = window.innerWidth; updateColumns(); };
-            window.onscroll = () => scrollY.value = window.scrollY;
-            watch(showChatModal, (v) => { if(!v && chatPoller) clearInterval(chatPoller); });
-            watch(user, (u) => { if(u && !inboxPoller) inboxPoller=setInterval(checkUnread, 10000); else if(!u && inboxPoller) clearInterval(inboxPoller); });
 
             onMounted(() => {
-                const load = document.getElementById('static-loading');
-                if(load) { load.style.opacity=0; setTimeout(()=>load.remove(), 500); }
+                const staticLoading = document.getElementById('static-loading');
+                if(staticLoading) { staticLoading.style.opacity = 0; setTimeout(()=>staticLoading.remove(), 500); }
                 try { const u = localStorage.getItem('cp_user'); if(u) user.value = JSON.parse(u); } catch(e){}
                 fetchPosts();
                 if(user.value) { checkUnread(); inboxPoller = setInterval(checkUnread, 10000); }
             });
+
+            watch(user, (u) => {
+                if (u && !inboxPoller) inboxPoller = setInterval(checkUnread, 10000);
+                else if (!u && inboxPoller) { clearInterval(inboxPoller); inboxPoller = null; }
+            });
+
+            const openInbox = async () => {
+                if (!user.value) return showAuthModal.value = true;
+                showInboxModal.value = true;
+                checkUnread();
+            };
+
+            const openChat = async (target, chatId) => {
+                showProfileModal.value = false;
+                showInboxModal.value = false;
+                chatTarget.value = target;
+                serverMessages.value = [];
+                pendingMessages.value = [];
+                showChatModal.value = true;
+                
+                if(chatId) {
+                    const chat = inboxList.value.find(c => c.chatId === chatId);
+                    if(chat && chat.unread > 0) { 
+                        totalUnread.value = Math.max(0, totalUnread.value - chat.unread); 
+                        chat.unread = 0; 
+                    }
+                    await fetch(`${API}?action=chat_read`, {method:'POST', body:JSON.stringify({user:user.value, chatId})});
+                }
+
+                fetchChatHistory();
+                if (chatPoller) clearInterval(chatPoller);
+                chatPoller = setInterval(fetchChatHistory, 3000);
+            };
+
+            const currentChatId = computed(() => {
+                if (!user.value || !chatTarget.value.username) return null;
+                return [user.value.username, chatTarget.value.username].sort().join('_');
+            });
+
+            const fetchChatHistory = async () => {
+                if (!showChatModal.value) return;
+                const reqChatId = currentChatId.value; 
+                const res = await fetch(`${API}?action=chat_history&u1=${user.value.username}&u2=${chatTarget.value.username}`);
+                if (reqChatId !== currentChatId.value) return;
+
+                const msgs = await res.json();
+                serverMessages.value = msgs;
+                // Filter out pending messages that are now on server (using timestamp proximity)
+                pendingMessages.value = pendingMessages.value.filter(p => 
+                    !msgs.some(s => s.content === p.content && s.sender === p.sender && Math.abs(p.timestamp - (s.timestamp?s.timestamp._seconds*1000:0)) < 10000)
+                );
+
+                nextTick(() => { const el = app._instance.refs.chatContainer; if(el) el.scrollTop = el.scrollHeight; });
+            };
+
+            const mergedMessages = computed(() => {
+                const list = [...serverMessages.value, ...pendingMessages.value].sort((a,b) => {
+                    const ta = a.timestamp?._seconds ? a.timestamp._seconds * 1000 : a.timestamp;
+                    const tb = b.timestamp?._seconds ? b.timestamp._seconds * 1000 : b.timestamp;
+                    return ta - tb;
+                });
+                return list;
+            });
+
+            const sendChat = async () => {
+                if (!chatInput.value.trim()) return;
+                const txt = chatInput.value;
+                chatInput.value = '';
+                const now = Date.now();
+                const tempMsg = { id: now, sender: user.value.username, content: txt, timestamp: now, pending: true };
+                pendingMessages.value.push(tempMsg);
+                
+                nextTick(() => { const el = app._instance.refs.chatContainer; if(el) el.scrollTop = el.scrollHeight; });
+
+                try {
+                    await fetch(`${API}?action=chat_send`, {
+                        method: 'POST', 
+                        body: JSON.stringify({ user: user.value, toUsername: chatTarget.value.username, content: txt })
+                    });
+                    fetchChatHistory();
+                } catch(e) {
+                    alert('发送失败');
+                    pendingMessages.value = pendingMessages.value.filter(m => m.id !== now);
+                }
+            };
+
+            watch(showChatModal, (val) => { if (!val && chatPoller) clearInterval(chatPoller); });
+
+            const deleteChatSession = async (chatId) => {
+                if(!confirm('删除会话?')) return;
+                await fetch(`${API}?action=delete_chat_session`, {method:'POST', body:JSON.stringify({user:user.value, chatId})});
+                inboxList.value = inboxList.value.filter(c => c.chatId !== chatId);
+            };
+
+            const handleAvatarClick = async (username) => {
+                if (!user.value) return showAuthModal.value = true;
+                if (username === user.value.username) { viewingUser.value = user.value; profileForm.value = { ...user.value, gender:user.value.gender||'', target:user.value.target||'all' }; isMyProfile.value = true; } 
+                else { try { const res = await fetch(`${API}?action=get_user_profile&username=${username}`); if (res.ok) { viewingUser.value = await res.json(); isMyProfile.value = false; } } catch(e) { alert('获取资料失败'); return; } }
+                showProfileModal.value = true;
+            };
+            let longPressTimer = null;
+            const startLongPress = (post, cmt) => { longPressTimer = setTimeout(() => { if(navigator.vibrate) navigator.vibrate(50); triggerReply(post, cmt); }, 600); };
+            const endLongPress = () => { clearTimeout(longPressTimer); };
+            const triggerReply = (post, cmt) => { if(!user.value) return showAuthModal.value = true; post.newCommentInput = `回复 @${cmt.nickname} : `; nextTick(() => { const el = app._instance.refs['input-'+post.id]; if(el) (Array.isArray(el)?el[0]:el).focus(); }); };
+            const updateColumns = () => { if(!Array.isArray(posts.value)) { posts.value = []; return; } const cols = windowWidth.value < 640 ? 1 : (windowWidth.value < 1024 ? 2 : 3); const res = Array.from({length: cols}, () => []); const filtered = filterGame.value==='全部' ? posts.value : posts.value.filter(p => p.game === filterGame.value); filtered.forEach((p, i) => res[i % cols].push(p)); columns.value = res; };
+            watch([filterGame, posts], updateColumns);
+            window.onresize = () => { windowWidth.value = window.innerWidth; updateColumns(); };
+            window.onscroll = () => scrollY.value = window.scrollY;
+            const fetchPosts = async () => { loading.value = true; error.value = ''; try { const res = await fetch(API); if(!res.ok) throw new Error('网络开小差了'); const data = await res.json(); if(Array.isArray(data)) posts.value = data; else throw new Error('数据格式错误'); } catch(e) { error.value = e.message; posts.value = []; } loading.value = false; };
+            const isLiked = (p) => { if(!p.likedIds) return false; if(user.value) return p.likedIds.includes('user:'+user.value.username); const locals = JSON.parse(localStorage.getItem('cp_likes')||'[]'); return locals.includes(p.id); };
+            const handleLike = async (p) => { if(p.liking) return; p.liking = true; const liked = isLiked(p); if(liked) { p.likes--; if(user.value) p.likedIds = p.likedIds.filter(id => id !== 'user:'+user.value.username); else { const ls = JSON.parse(localStorage.getItem('cp_likes')||'[]'); localStorage.setItem('cp_likes', JSON.stringify(ls.filter(id=>id!==p.id))); p.likedIds = []; } } else { p.likes++; if(user.value) { if(!p.likedIds) p.likedIds=[]; p.likedIds.push('user:'+user.value.username); } else { const ls = JSON.parse(localStorage.getItem('cp_likes')||'[]'); ls.push(p.id); localStorage.setItem('cp_likes', JSON.stringify(ls)); if(!p.likedIds) p.likedIds=[]; p.likedIds.push('temp'); } } try { await fetch(`${API}?action=like`, {method:'POST', body:JSON.stringify({id:p.id, user:user.value})}); } catch(e){ p.likes = liked ? p.likes+1 : p.likes-1; } p.liking = false; };
+            const compress = (file) => new Promise(resolve => { const r = new FileReader(); r.onload = e => { const img = new Image(); img.onload = () => { const cvs = document.createElement('canvas'); let w=img.width, h=img.height; const MAX = 1920; if(w>MAX){ h*=MAX/w; w=MAX; } cvs.width=w; cvs.height=h; const ctx = cvs.getContext('2d'); ctx.drawImage(img,0,0,w,h); let q = 0.9, dataUrl = cvs.toDataURL('image/jpeg', q); const LIMIT = 330000; while(dataUrl.length > LIMIT && q > 0.3) { q-=0.1; dataUrl = cvs.toDataURL('image/jpeg', q); } if(dataUrl.length > LIMIT) { w*=0.7; h*=0.7; cvs.width=w; cvs.height=h; ctx.drawImage(img,0,0,w,h); dataUrl=cvs.toDataURL('image/jpeg', 0.6); } resolve(dataUrl); }; img.src = e.target.result; }; r.readAsDataURL(file); });
+            const handleAvatarUpload = async (e) => { if(e.target.files[0]) authForm.value.avatar = await compress(e.target.files[0]); };
+            const handleProfileAvatarChange = async (e) => { if(e.target.files[0]) profileForm.value.avatar = await compress(e.target.files[0]); };
+            const handlePostImageUpload = async (e) => { if(e.target.files[0] && postForm.value.images.length<3) postForm.value.images.push(await compress(e.target.files[0])); e.target.value=''; };
+            const handleAuth = async () => { if(!authForm.value.username) return alert('请输入账号'); if (authMode.value === 'register' && authForm.value.username !== 'admin') { if(authForm.value.username.length < 8) return alert('账号至少8位'); } isAuthing.value = true; try { const res = await fetch(`${API}?action=${authMode.value}`, {method:'POST', body:JSON.stringify(authForm.value)}); const d = await res.json(); if(d.error) alert(d.error); else { user.value = d.user; localStorage.setItem('cp_user', JSON.stringify(d.user)); showAuthModal.value = false; } } catch(e){ alert('网络错误'); } isAuthing.value = false; };
+            const handleProfileUpdate = async () => { isUpdatingProfile.value = true; try { const payload = { username: user.value.username, user: user.value, ...profileForm.value }; const res = await fetch(`${API}?action=update_profile`, { method:'POST', body:JSON.stringify(payload) }); const d = await res.json(); if(d.success) { user.value = d.user; localStorage.setItem('cp_user', JSON.stringify(d.user)); alert('保存成功'); showProfileModal.value = false; } else { alert(d.error || '保存失败'); } } catch(e) { alert('网络错误'); } isUpdatingProfile.value = false; };
+            const submitPost = async () => { if(!postForm.value.content) return alert('写点什么吧'); const totalSize = postForm.value.images.reduce((acc, img) => acc + img.length, 0); if (totalSize > 1000000) return alert('图片总大小超限，请删除一张或换小图重试'); submitting.value = true; try { const res = await fetch(`${API}?action=create_post`, {method:'POST', body:JSON.stringify({user:user.value, ...postForm.value})}); const data = await res.json().catch(() => null); if(res.ok && data && data.success) { showPostModal.value = false; postForm.value = {content:'', game:'王者荣耀', requirement:'', images:[]}; fetchPosts(); } else { const msg = data ? (data.error || '未知错误') : `服务器响应异常`; alert(`发布失败: ${msg}`); } } catch(e){ alert('网络错误'); } submitting.value = false; };
+            const deletePost = async (id) => { if(confirm('确定删除？')) { await fetch(`${API}?action=delete_post`, {method:'POST', body:JSON.stringify({id, user:user.value})}); fetchPosts(); } };
+            const toggleComments = async (p) => { p.showComments = !p.showComments; if(p.showComments && !p.loaded) { p.loadingComments = true; try { p.commentList = await (await fetch(`${API}?action=get_comments&postId=${p.id}`)).json(); p.loaded=true; } catch(e){} p.loadingComments = false; } };
+            const submitComment = async (p) => { if(!user.value) return showAuthModal.value = true; if(!p.newCommentInput) return; const txt = p.newCommentInput; p.newCommentInput=''; if(!p.commentList) p.commentList=[]; const tempCmt = {id:Date.now(), nickname:user.value.nickname, username:user.value.username, avatar:user.value.avatar, content:txt}; p.commentList.push(tempCmt); p.commentsCount = (p.commentsCount||0)+1; await fetch(`${API}?action=add_comment`, {method:'POST', body:JSON.stringify({postId:p.id, user:user.value, content:txt})}); };
+            const deleteComment = async (p, cid) => { if(confirm('删评论？')) { await fetch(`${API}?action=delete_comment`, {method:'POST', body:JSON.stringify({postId:p.id, commentId:cid, user:user.value})}); p.commentList = p.commentList.filter(c=>c.id!==cid); p.commentsCount--; } };
+            const copyText = (text, label) => { if(navigator.clipboard) navigator.clipboard.writeText(text).then(() => alert(`已复制 ${label}: ${text}`)); else { const input = document.createElement('input'); input.value = text; document.body.appendChild(input); input.select(); document.execCommand('copy'); document.body.removeChild(input); alert(`已复制 ${label}: ${text}`); } };
+            const changeFilter = g => filterGame.value = g;
+            const logout = () => { user.value=null; localStorage.removeItem('cp_user'); showProfileModal.value=false; };
+            const checkAuthAndPost = () => user.value ? showPostModal.value = true : showAuthModal.value = true;
+            const removeImage = i => postForm.value.images.splice(i,1);
+            const previewImage = (l,i) => preview.value = {show:true, list:l, idx:i};
+            const scrollToTop = () => window.scrollTo({top:0, behavior:'smooth'});
 
             return {
                 user, loading, error, posts, columns, games, filterGame, notice, scrollY,
                 showAuthModal, authMode, authForm, isAuthing, showPostModal, postForm, submitting, preview,
                 showProfileModal, profileForm, isUpdatingProfile, viewingUser, isMyProfile, genderMap, targetMap,
                 showInboxModal, inboxList, showChatModal, chatMessages: mergedMessages, chatTarget, chatInput, totalUnread,
-                refresh: fetchPosts, changeFilter: (g)=>filterGame.value=g,
-                handleAuth, handleAvatarUpload, handlePostImageUpload, submitPost, handleProfileAvatarChange, handleProfileUpdate,
-                deletePost, toggleComments, submitComment, deleteComment, isLiked, handleLike,
-                logout, copyText, removeImage, previewImage, scrollToTop, checkAuthAndPost,
-                handleAvatarClick, openInbox, openChat, sendChat, deleteChatSession, triggerReply
+                
+                refresh:fetchPosts, handleAuth, handleAvatarUpload, handlePostImageUpload, submitPost,
+                deletePost, isLiked, handleLike, toggleComments, submitComment, deleteComment,
+                changeFilter, logout, checkAuthAndPost, removeImage, previewImage, scrollToTop,
+                startLongPress, endLongPress, triggerReply,
+                handleProfileAvatarChange, handleProfileUpdate, copyText, handleAvatarClick,
+                openInbox, openChat, sendChat, deleteChatSession
             };
         }
     }).mount('#app');
