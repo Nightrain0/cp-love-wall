@@ -23,6 +23,14 @@ const hashPassword = (pwd) => {
     return Buffer.from(pwd + "cpdd_salt").toString('base64');
 };
 
+// 获取用户唯一标识 (IP 或 用户名)
+const getIdentifier = (req, userBody) => {
+    if (userBody && userBody.username) return `user:${userBody.username}`;
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    // 取 x-forwarded-for 的第一个 IP (真实 IP)
+    return `ip:${ip.split(',')[0].trim()}`;
+};
+
 export default async function handler(req, res) {
     // CORS 设置
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -39,22 +47,20 @@ export default async function handler(req, res) {
         const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
 
         // ==========================================
-        // 1. 鉴权模块 (注册/登录)
+        // 1. 鉴权模块
         // ==========================================
         
         if (action === 'register') {
             const { username, password, nickname, avatar } = body;
             
-            // ★ 新增：长度校验
-            if (!username || username.length < 3) {
-                return res.status(400).json({ error: '账号有点短，至少要3个字符哦' });
+            // ★ 修改：账号至少8位
+            if (!username || username.length < 8) {
+                return res.status(400).json({ error: '账号太短啦，至少要8位字符哦' });
             }
             if (!password || password.length < 6) {
                 return res.status(400).json({ error: '密码太简单啦，至少设置6位吧' });
             }
-            if (!nickname) {
-                return res.status(400).json({ error: '取个好听的名字吧' });
-            }
+            if (!nickname) return res.status(400).json({ error: '取个好听的名字吧' });
 
             const userRef = db.collection('cp_users').doc(username);
             const userDoc = await userRef.get();
@@ -83,11 +89,9 @@ export default async function handler(req, res) {
             
             const userData = userDoc.data();
             if (userData.password !== hashPassword(password)) {
-                return res.status(400).json({ error: '密码不对哦，再想想' });
+                return res.status(400).json({ error: '密码不对哦' });
             }
-
             userData.isAdmin = (userData.username === 'admin');
-            
             delete userData.password;
             return res.json({ success: true, user: userData });
         }
@@ -102,27 +106,33 @@ export default async function handler(req, res) {
                 .limit(50)
                 .get();
             
+            // 获取当前请求者的 ID，用于判断是否点赞过
+            // 注意：GET 请求没有 body，难以获取 user，这里主要靠 IP 判断
+            // 或者前端获取后自己对比 likedIds
             const posts = [];
             snapshot.forEach(doc => {
                 const data = doc.data();
+                // 转换时间
                 let timeStr = "刚刚";
                 if (data.timestamp && data.timestamp._seconds) {
                     const date = new Date(data.timestamp._seconds * 1000);
-                    const now = new Date();
-                    if (now - date < 86400000) {
-                        timeStr = date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
-                    } else {
-                        timeStr = date.toLocaleDateString('zh-CN', {month: '2-digit', day:'2-digit'});
-                    }
+                    timeStr = date.toLocaleDateString('zh-CN', {month: '2-digit', day:'2-digit'}) + " " + date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
                 }
-                posts.push({ id: doc.id, ...data, timeStr });
+                
+                // 为了节省带宽，likedIds 数组不一定非要全返回，但为了判断状态，先返回
+                // 如果数组太大，可以考虑只返回 count
+                posts.push({ 
+                    id: doc.id, 
+                    ...data, 
+                    timeStr,
+                    likedIds: data.likedIds || [] // 确保有这个字段
+                });
             });
             return res.json(posts);
         }
 
         if (req.method === 'POST' && action === 'create_post') {
             const { user, content, game, images, requirement } = body;
-            
             if (!user || !user.username) return res.status(401).json({ error: '请先登录' });
             if (!content) return res.status(400).json({ error: '内容不能为空' });
 
@@ -135,42 +145,66 @@ export default async function handler(req, res) {
                 requirement: requirement || '',
                 images: images || [], 
                 likes: 0,
+                likedIds: [], // ★ 新增：存储点赞人的 ID 数组
                 commentsCount: 0,
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
             });
             return res.json({ success: true });
         }
 
-        // 管理员删除帖子
         if (req.method === 'POST' && action === 'delete_post') {
             const { id, user } = body;
             if (!user || user.username !== 'admin') {
-                return res.status(403).json({ error: '权限不足，只有管理员(admin)可以删除' });
+                return res.status(403).json({ error: '权限不足' });
             }
             await db.collection('cp_posts').doc(id).delete();
             return res.json({ success: true });
         }
 
         // ==========================================
-        // 3. 互动模块
+        // 3. 互动模块 (点赞/评论)
         // ==========================================
 
+        // ★ 重构：点赞/取消点赞 (Toggle)
         if (req.method === 'POST' && action === 'like') {
-            const { id } = body;
-            await db.collection('cp_posts').doc(id).update({
-                likes: admin.firestore.FieldValue.increment(1)
+            const { id, user } = body;
+            const docRef = db.collection('cp_posts').doc(id);
+            const identifier = getIdentifier(req, user); // 获取 IP 或 用户名
+
+            await db.runTransaction(async (t) => {
+                const doc = await t.get(docRef);
+                if (!doc.exists) throw "Post not found";
+
+                const data = doc.data();
+                const likedIds = data.likedIds || [];
+                const index = likedIds.indexOf(identifier);
+
+                if (index > -1) {
+                    // 已点赞 -> 取消
+                    likedIds.splice(index, 1);
+                    t.update(docRef, {
+                        likedIds: likedIds,
+                        likes: Math.max(0, (data.likes || 1) - 1)
+                    });
+                } else {
+                    // 未点赞 -> 添加
+                    // 限制数组长度，防止文档过大 (比如只存最近500个，或者不限制看情况)
+                    if (likedIds.length > 1000) likedIds.shift(); 
+                    likedIds.push(identifier);
+                    t.update(docRef, {
+                        likedIds: likedIds,
+                        likes: (data.likes || 0) + 1
+                    });
+                }
             });
-            return res.json({ success: true });
+            return res.json({ success: true, identifier }); // 返回 ID 供前端调试
         }
 
         if (req.method === 'GET' && action === 'get_comments') {
             const { postId } = req.query;
-            if (!postId) return res.status(400).json({ error: 'Missing postId' });
-
             const snapshot = await db.collection('cp_posts').doc(postId).collection('comments')
                 .orderBy('timestamp', 'asc')
                 .get();
-            
             const comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             return res.json(comments);
         }
@@ -191,6 +225,26 @@ export default async function handler(req, res) {
                 });
                 t.update(postRef, {
                     commentsCount: admin.firestore.FieldValue.increment(1)
+                });
+            });
+            return res.json({ success: true });
+        }
+
+        // ★ 新增：管理员删除评论
+        if (req.method === 'POST' && action === 'delete_comment') {
+            const { postId, commentId, user } = body;
+            if (!user || user.username !== 'admin') {
+                return res.status(403).json({ error: '权限不足' });
+            }
+
+            const postRef = db.collection('cp_posts').doc(postId);
+            const commentRef = postRef.collection('comments').doc(commentId);
+
+            await db.runTransaction(async (t) => {
+                t.delete(commentRef);
+                // 评论数 -1
+                t.update(postRef, {
+                    commentsCount: admin.firestore.FieldValue.increment(-1)
                 });
             });
             return res.json({ success: true });
