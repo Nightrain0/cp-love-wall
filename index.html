@@ -30,12 +30,17 @@
         .fab-safe { bottom: calc(32px + env(safe-area-inset-bottom)); }
         .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px; }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-        .chat-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
+        
+        .chat-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 16px; }
         .chat-row.mine { flex-direction: row-reverse; }
-        .chat-avatar { width: 36px; height: 36px; border-radius: 50%; background: #f1f5f9; object-fit: cover; border: 1px solid white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .chat-bubble { max-width: 75%; padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.5; word-break: break-all; position: relative; }
-        .chat-row.mine .chat-bubble { background: #1e293b; color: white; border-top-right-radius: 4px; }
-        .chat-row.other .chat-bubble { background: #fff; color: #334155; border-top-left-radius: 4px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .chat-avatar { width: 32px; height: 32px; border-radius: 50%; background: #f1f5f9; object-fit: cover; border: 1px solid white; flex-shrink: 0; }
+        .chat-bubble-container { max-width: 75%; display: flex; flex-direction: column; }
+        .chat-row.mine .chat-bubble-container { align-items: flex-end; }
+        .chat-bubble { padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.5; word-break: break-all; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .chat-row.mine .chat-bubble { background: #1e293b; color: white; border-bottom-right-radius: 4px; }
+        .chat-row.other .chat-bubble { background: #fff; color: #334155; border-top-left-radius: 4px; border: 1px solid #e2e8f0; }
+        .chat-time { font-size: 9px; color: #94a3b8; margin-top: 4px; margin-left: 2px; margin-right: 2px; }
+        .chat-pending { opacity: 0.7; }
     </style>
 </head>
 <body>
@@ -56,14 +61,12 @@
             <h1 class="text-lg font-extrabold text-slate-800 tracking-tight">CPDD<span class="text-rose-500">.</span></h1>
         </div>
         <div v-if="user" class="flex items-center gap-4">
-            <!-- 消息中心入口 -->
             <div class="relative cursor-pointer group" @click="openInbox">
                 <i class="ri-mail-line text-2xl text-slate-500 group-hover:text-slate-800 transition-colors"></i>
                 <div v-if="totalUnread > 0" class="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center border border-white font-bold shadow-sm px-1">
                     {{ totalUnread > 99 ? '99+' : totalUnread }}
                 </div>
             </div>
-
             <div class="flex items-center gap-2 cursor-pointer" @click="handleAvatarClick(user.username)">
                 <img :src="user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`" class="w-9 h-9 rounded-full border bg-white object-cover">
             </div>
@@ -84,25 +87,21 @@
         </div>
     </div>
 
-    <!-- 列表 -->
     <main class="max-w-5xl mx-auto px-4 pt-6 pb-safe">
         <div v-if="error" class="text-center py-20">
              <div class="text-4xl mb-2">⚠️</div>
              <p class="text-sm text-slate-500 mb-4">{{ error }}</p>
              <button @click="refresh" class="bg-rose-500 text-white px-6 py-2 rounded-full text-sm font-bold">重试</button>
         </div>
-
         <div v-else-if="loading" class="text-center py-32 text-rose-300">
             <i class="ri-loader-4-line text-3xl animate-spin"></i>
             <p class="text-xs font-bold mt-2">加载中...</p>
         </div>
-
         <div v-else-if="!posts.length" class="text-center py-32 text-slate-400">
             <div class="text-5xl mb-2 grayscale opacity-50">🏔️</div>
             <p class="text-sm font-bold">暂无内容</p>
             <button @click="checkAuthAndPost" class="mt-4 text-rose-500 text-xs font-bold hover:underline">去发布</button>
         </div>
-
         <div v-else class="flex gap-4 items-start">
             <div v-for="(col, i) in columns" :key="i" class="flex-1 flex flex-col gap-4 min-w-0">
                 <div v-for="post in col" :key="post.id" class="app-card p-4 group relative">
@@ -179,7 +178,7 @@
         <button @click="checkAuthAndPost" class="w-12 h-12 bg-slate-900 text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform"><i class="ri-add-line text-xl"></i></button>
     </div>
 
-    <!-- 消息中心弹窗 -->
+    <!-- 消息中心 -->
     <div v-if="showInboxModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
         <div class="bg-white w-full max-w-xs rounded-3xl shadow-2xl flex flex-col h-[60vh]">
             <div class="p-4 border-b flex justify-between items-center">
@@ -188,38 +187,43 @@
             </div>
             <div class="flex-1 overflow-y-auto p-2">
                 <div v-if="!inboxList.length" class="text-center text-slate-300 text-xs py-10">暂无私信</div>
-                <!-- 列表项 -->
-                <div v-for="chat in inboxList" :key="chat.chatId" @click="openChat({username: chat.otherUsername, nickname: chat.otherNickname, avatar: chat.otherAvatar}, chat.chatId)" class="flex gap-3 items-center p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors relative">
-                    <div class="relative">
-                        <img :src="chat.otherAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chat.otherUsername}`" class="w-10 h-10 rounded-full bg-slate-100 object-cover border border-slate-200">
-                    </div>
+                <div v-for="chat in inboxList" :key="chat.chatId" class="flex gap-3 items-center p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors relative group" @click="openChat({username: chat.otherUsername, nickname: chat.otherNickname, avatar: chat.otherAvatar}, chat.chatId)">
+                    <img :src="chat.otherAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chat.otherUsername}`" class="w-10 h-10 rounded-full bg-slate-100 object-cover border border-slate-200">
                     <div class="flex-1 min-w-0">
                         <div class="flex justify-between items-center">
                             <span class="font-bold text-sm text-slate-700">{{ chat.otherNickname }}</span>
-                            <span class="text-[10px] text-slate-400">私信</span>
+                            <button @click.stop="deleteChatSession(chat.chatId)" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="ri-delete-bin-line"></i></button>
                         </div>
                         <p class="text-xs text-slate-500 truncate mt-0.5">{{ chat.lastMsg }}</p>
                     </div>
-                    <!-- 未读红点 -->
                     <div v-if="chat.unread > 0" class="absolute top-3 right-3 w-2 h-2 bg-red-500 rounded-full"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 聊天窗口 -->
+    <!-- 聊天窗口 (防闪烁) -->
     <div v-if="showChatModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
         <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl flex flex-col h-[70vh]">
             <div class="p-4 border-b flex justify-between items-center bg-slate-50 rounded-t-3xl">
                 <div class="flex items-center gap-2">
                     <button @click="showChatModal=false" class="text-slate-400 hover:text-slate-600"><i class="ri-arrow-left-line text-xl"></i></button>
-                    <span class="font-bold text-sm">{{ chatTarget.nickname }}</span>
+                    <div class="flex items-center gap-2">
+                        <img :src="chatTarget.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chatTarget.username}`" class="w-6 h-6 rounded-full bg-white border">
+                        <span class="font-bold text-sm">{{ chatTarget.nickname }}</span>
+                    </div>
                 </div>
             </div>
-            <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50" ref="chatContainer">
-                <div v-for="msg in chatMessages" :key="msg.id" class="chat-row" :class="msg.sender === user.username ? 'mine' : 'other'">
+            <div class="flex-1 overflow-y-auto p-4 bg-slate-50" ref="chatContainer">
+                <div v-for="msg in chatMessages" :key="msg.id" class="chat-row" :class="[msg.sender === user.username ? 'mine' : 'other', msg.pending ? 'chat-pending' : '']">
                     <img :src="(msg.sender === user.username ? user.avatar : chatTarget.avatar) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.sender}`" class="chat-avatar">
-                    <div class="chat-bubble">{{ msg.content }}</div>
+                    <div class="chat-bubble-container">
+                        <div class="chat-bubble">
+                            {{ msg.content }}
+                            <div v-if="msg.pending" class="absolute -left-4 top-2 text-slate-400 text-xs"><i class="ri-loader-4-line animate-spin"></i></div>
+                        </div>
+                        <span v-if="msg.timeStr && !msg.pending" class="chat-time">{{ msg.timeStr }}</span>
+                    </div>
                 </div>
             </div>
             <div class="p-3 border-t bg-white rounded-b-3xl flex gap-2">
@@ -229,7 +233,7 @@
         </div>
     </div>
 
-    <!-- Auth/Profile/Post Modal 省略... -->
+    <!-- Other Modals 省略... -->
     <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm"><div class="bg-white w-full max-w-xs rounded-2xl p-6 shadow-2xl"><h3 class="text-center font-bold text-lg mb-4">{{ authMode==='login'?'登录':'注册' }}</h3><div class="space-y-3"><div v-if="authMode==='register'" class="flex justify-center" @click="$refs.avatarInput.click()"><div class="w-16 h-16 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 overflow-hidden relative"><img v-if="authForm.avatar" :src="authForm.avatar" class="w-full h-full object-cover"><i v-else class="ri-camera-fill text-xl"></i></div><input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarUpload"></div><input v-model="authForm.username" :placeholder="authMode==='register' && authForm.username!=='admin' ? '账号 (≥8位)' : '账号'" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><input v-model="authForm.password" type="password" placeholder="密码 (≥6位)" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><input v-if="authMode==='register'" v-model="authForm.nickname" placeholder="昵称" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><button @click="handleAuth" :disabled="isAuthing" class="w-full bg-slate-900 text-white py-2 rounded-lg text-xs font-bold">{{ isAuthing?'处理中...':'确定' }}</button></div><div class="flex justify-between mt-4 text-xs text-slate-400"><button @click="authMode = authMode==='login'?'register':'login'">切换{{ authMode==='login'?'注册':'登录' }}</button><button @click="showAuthModal=false">关闭</button></div></div></div>
     <div v-if="showPostModal" class="fixed inset-0 z-50 bg-white flex flex-col"><div class="flex justify-between items-center p-4 border-b"><button @click="showPostModal=false" class="text-slate-500">取消</button><h3 class="font-bold">发布动态</h3><button @click="submitPost" :disabled="submitting" class="bg-rose-500 text-white px-4 py-1 rounded-full text-xs font-bold">{{ submitting?'...':'发布' }}</button></div><div class="p-4 flex-1 overflow-y-auto"><textarea v-model="postForm.content" class="w-full h-32 text-sm outline-none placeholder-slate-300 resize-none" placeholder="说点什么..."></textarea><div class="flex flex-wrap gap-2 mb-4"><div v-for="(img,i) in postForm.images" :key="i" class="w-20 h-20 rounded bg-slate-100 relative overflow-hidden"><img :src="img" class="w-full h-full object-cover"><button @click="removeImage(i)" class="absolute top-0 right-0 bg-black/50 text-white w-5 h-5 flex items-center justify-center text-xs">&times;</button></div><div v-if="postForm.images.length<3" @click="$refs.pInput.click()" class="w-20 h-20 rounded border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-300"><i class="ri-add-line text-xl"></i></div><input type="file" ref="pInput" hidden accept="image/*" @change="handlePostImageUpload"></div><div class="space-y-4"><div><label class="text-xs font-bold text-slate-400 block mb-2">分区</label><div class="flex flex-wrap gap-2"><button v-for="g in games.slice(1)" :key="g" @click="postForm.game=g" class="px-3 py-1 rounded border text-xs" :class="postForm.game===g?'bg-slate-800 text-white':'bg-white text-slate-500'">{{ g }}</button></div></div><div><label class="text-xs font-bold text-slate-400 block mb-2">要求</label><input v-model="postForm.requirement" class="w-full bg-slate-50 rounded px-3 py-2 text-xs outline-none" placeholder="选填..."></div></div></div></div>
     <div v-if="preview.show" class="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center" @click="preview.show=false"><img :src="preview.list[preview.idx]" class="max-w-full max-h-screen object-contain"></div>
@@ -238,7 +242,7 @@
 </div>
 
 <script>
-    const { createApp, ref, onMounted, watch, nextTick } = Vue;
+    const { createApp, ref, onMounted, watch, nextTick, computed } = Vue;
 
     const app = createApp({
         setup() {
@@ -264,7 +268,8 @@
             const viewingUser = ref({});
             const isMyProfile = ref(false);
             const inboxList = ref([]);
-            const chatMessages = ref([]);
+            const pendingMessages = ref([]);
+            const serverMessages = ref([]);
             const chatTarget = ref({});
             const chatInput = ref('');
             const totalUnread = ref(0);
@@ -317,17 +322,16 @@
                 showProfileModal.value = false;
                 showInboxModal.value = false;
                 chatTarget.value = target;
-                chatMessages.value = [];
+                serverMessages.value = [];
+                pendingMessages.value = [];
                 showChatModal.value = true;
                 
                 if(chatId) {
-                    // ★ 即时清除本地红点
                     const chat = inboxList.value.find(c => c.chatId === chatId);
                     if(chat && chat.unread > 0) { 
                         totalUnread.value = Math.max(0, totalUnread.value - chat.unread); 
                         chat.unread = 0; 
                     }
-                    // 请求后端清除
                     await fetch(`${API}?action=chat_read`, {method:'POST', body:JSON.stringify({user:user.value, chatId})});
                 }
 
@@ -336,28 +340,65 @@
                 chatPoller = setInterval(fetchChatHistory, 3000);
             };
 
+            const currentChatId = computed(() => {
+                if (!user.value || !chatTarget.value.username) return null;
+                return [user.value.username, chatTarget.value.username].sort().join('_');
+            });
+
             const fetchChatHistory = async () => {
                 if (!showChatModal.value) return;
+                const reqChatId = currentChatId.value; 
                 const res = await fetch(`${API}?action=chat_history&u1=${user.value.username}&u2=${chatTarget.value.username}`);
+                if (reqChatId !== currentChatId.value) return;
+
                 const msgs = await res.json();
-                const shouldScroll = chatMessages.value.length !== msgs.length;
-                chatMessages.value = msgs;
-                if(shouldScroll) nextTick(() => { const el = app._instance.refs.chatContainer; if(el) el.scrollTop = el.scrollHeight; });
+                serverMessages.value = msgs;
+                // Filter out pending messages that are now on server (using timestamp proximity)
+                pendingMessages.value = pendingMessages.value.filter(p => 
+                    !msgs.some(s => s.content === p.content && s.sender === p.sender && Math.abs(p.timestamp - (s.timestamp?s.timestamp._seconds*1000:0)) < 10000)
+                );
+
+                nextTick(() => { const el = app._instance.refs.chatContainer; if(el) el.scrollTop = el.scrollHeight; });
             };
+
+            const mergedMessages = computed(() => {
+                const list = [...serverMessages.value, ...pendingMessages.value].sort((a,b) => {
+                    const ta = a.timestamp?._seconds ? a.timestamp._seconds * 1000 : a.timestamp;
+                    const tb = b.timestamp?._seconds ? b.timestamp._seconds * 1000 : b.timestamp;
+                    return ta - tb;
+                });
+                return list;
+            });
 
             const sendChat = async () => {
                 if (!chatInput.value.trim()) return;
                 const txt = chatInput.value;
                 chatInput.value = '';
-                chatMessages.value.push({ id: Date.now(), sender: user.value.username, content: txt });
-                await fetch(`${API}?action=chat_send`, {
-                    method: 'POST', 
-                    body: JSON.stringify({ user: user.value, toUsername: chatTarget.value.username, content: txt })
-                });
-                fetchChatHistory();
+                const now = Date.now();
+                const tempMsg = { id: now, sender: user.value.username, content: txt, timestamp: now, pending: true };
+                pendingMessages.value.push(tempMsg);
+                
+                nextTick(() => { const el = app._instance.refs.chatContainer; if(el) el.scrollTop = el.scrollHeight; });
+
+                try {
+                    await fetch(`${API}?action=chat_send`, {
+                        method: 'POST', 
+                        body: JSON.stringify({ user: user.value, toUsername: chatTarget.value.username, content: txt })
+                    });
+                    fetchChatHistory();
+                } catch(e) {
+                    alert('发送失败');
+                    pendingMessages.value = pendingMessages.value.filter(m => m.id !== now);
+                }
             };
 
             watch(showChatModal, (val) => { if (!val && chatPoller) clearInterval(chatPoller); });
+
+            const deleteChatSession = async (chatId) => {
+                if(!confirm('删除会话?')) return;
+                await fetch(`${API}?action=delete_chat_session`, {method:'POST', body:JSON.stringify({user:user.value, chatId})});
+                inboxList.value = inboxList.value.filter(c => c.chatId !== chatId);
+            };
 
             const handleAvatarClick = async (username) => {
                 if (!user.value) return showAuthModal.value = true;
@@ -399,14 +440,14 @@
                 user, loading, error, posts, columns, games, filterGame, notice, scrollY,
                 showAuthModal, authMode, authForm, isAuthing, showPostModal, postForm, submitting, preview,
                 showProfileModal, profileForm, isUpdatingProfile, viewingUser, isMyProfile, genderMap, targetMap,
-                showInboxModal, inboxList, showChatModal, chatMessages, chatTarget, chatInput, totalUnread,
+                showInboxModal, inboxList, showChatModal, chatMessages: mergedMessages, chatTarget, chatInput, totalUnread,
                 
                 refresh:fetchPosts, handleAuth, handleAvatarUpload, handlePostImageUpload, submitPost,
                 deletePost, isLiked, handleLike, toggleComments, submitComment, deleteComment,
                 changeFilter, logout, checkAuthAndPost, removeImage, previewImage, scrollToTop,
                 startLongPress, endLongPress, triggerReply,
                 handleProfileAvatarChange, handleProfileUpdate, copyText, handleAvatarClick,
-                openInbox, openChat, sendChat
+                openInbox, openChat, sendChat, deleteChatSession
             };
         }
     }).mount('#app');
