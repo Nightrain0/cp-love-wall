@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 
+// --- 初始化逻辑 ---
 if (!admin.apps.length) {
     if (process.env.FIREBASE_CREDENTIALS) {
         try {
@@ -52,6 +53,12 @@ export default async function handler(req, res) {
                 const chatData = { participants: [user.username, toUsername], lastMsg: content, lastSender: user.username, updatedAt: now, unreadCounts: unreadMap };
                 if (!doc.exists) chatData.createdAt = now;
                 
+                // 如果之前隐藏了，现在发新消息要让双方都可见
+                const hidden = doc.exists ? (doc.data().hiddenFor || []) : [];
+                if (hidden.length > 0) {
+                    chatData.hiddenFor = hidden.filter(u => u !== user.username && u !== toUsername);
+                }
+
                 t.set(chatRef, chatData, { merge: true });
                 t.set(chatRef.collection('messages').doc(), { sender: user.username, content, timestamp: now });
             });
@@ -70,6 +77,9 @@ export default async function handler(req, res) {
                 .sort((a, b) => (b.updatedAt?.toMillis() || 0) - (a.updatedAt?.toMillis() || 0));
 
             for (const d of docs) {
+                // 跳过已删除（隐藏）的会话
+                if (d.hiddenFor && d.hiddenFor.includes(myUsername)) continue;
+
                 const otherUser = d.participants.find(p => p !== myUsername);
                 // 获取对方信息
                 let otherInfo = { nickname: otherUser, avatar: '' };
@@ -105,13 +115,38 @@ export default async function handler(req, res) {
             return res.json({ success: true });
         }
 
+        // ★ 删除会话（隐藏）
+        if (req.method === 'POST' && action === 'delete_chat_session') {
+            const { user, chatId } = body;
+            const ref = db.collection('cp_chats').doc(chatId);
+            await db.runTransaction(async t => {
+                const doc = await t.get(ref);
+                if (!doc.exists) return;
+                let hidden = doc.data().hiddenFor || [];
+                if (!hidden.includes(user.username)) {
+                    hidden.push(user.username);
+                    t.update(ref, { hiddenFor: hidden });
+                }
+            });
+            return res.json({ success: true });
+        }
+
         if (req.method === 'GET' && action === 'chat_history') {
             const chatId = getChatId(req.query.u1, req.query.u2);
             const snap = await db.collection('cp_chats').doc(chatId).collection('messages').orderBy('timestamp', 'asc').limit(50).get();
-            return res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            const msgs = snap.docs.map(d => {
+                const data = d.data();
+                let ts = '';
+                if(data.timestamp) { 
+                    const dt = new Date(data.timestamp._seconds * 1000);
+                    ts = `${dt.getHours()}:${String(dt.getMinutes()).padStart(2,'0')}`;
+                }
+                return { id: d.id, ...data, timeStr: ts };
+            });
+            return res.json(msgs);
         }
 
-        // --- 鉴权 & 帖子 ---
+        // --- 鉴权 & 帖子 (保持原有逻辑) ---
         if (action === 'register') {
             const { username, password, nickname, avatar } = body;
             if (username !== 'admin' && (!username || username.length < 8)) return res.status(400).json({ error: '账号需≥8位' });
