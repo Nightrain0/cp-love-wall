@@ -4,196 +4,191 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CPDD 扩列小站</title>
-    <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 Vue 3 (为了写交互逻辑方便，比纯原生JS更易维护) -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-    <!-- 图标库 -->
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
-    
     <style>
-        /* 自定义一些动画和滚动条 */
-        body { background-color: #fdf2f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        body { background-color: #fff0f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
-        .slide-up-enter-active { transition: all 0.3s ease-out; }
-        .slide-up-enter-from { transform: translateY(20px); opacity: 0; }
-        
-        /* 游戏标签颜色 */
-        .tag-wzry { background: #fef3c7; color: #d97706; }
-        .tag-ys { background: #e0e7ff; color: #4f46e5; }
-        .tag-lol { background: #dbeafe; color: #2563eb; }
-        .tag-pubg { background: #dcfce7; color: #16a34a; }
-        .tag-other { background: #f3f4f6; color: #6b7280; }
+        /* 游戏标签色 */
+        .tag-wzry { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
+        .tag-ys { background: #f0f9ff; color: #0369a1; border: 1px solid #e0f2fe; }
+        .tag-lol { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
+        .img-grid-1 { grid-template-columns: 1fr; }
+        .img-grid-2 { grid-template-columns: 1fr 1fr; }
+        .img-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
     </style>
 </head>
 <body>
 
-<div id="app" class="max-w-3xl mx-auto min-h-screen pb-20 relative">
+<div id="app" class="max-w-2xl mx-auto min-h-screen pb-24 relative bg-gray-50 shadow-xl">
     
     <!-- 顶部导航 -->
-    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-pink-100 px-4 h-16 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-            <div class="bg-gradient-to-tr from-pink-400 to-purple-400 w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-lg rotate-3">
-                <i class="ri-gamepad-fill"></i>
-            </div>
-            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-purple-500">
-                CPDD扩列
-            </h1>
+    <header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-pink-100 px-4 h-14 flex items-center justify-between">
+        <div class="flex items-center gap-2" @click="refresh">
+            <span class="text-2xl">🎀</span>
+            <h1 class="text-lg font-bold text-slate-800">CPDD扩列</h1>
         </div>
-        <button @click="showPostModal = true" class="bg-pink-500 active:scale-95 transition-transform text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-md shadow-pink-200 flex items-center gap-1">
-            <i class="ri-add-line"></i> 发布
+        <div v-if="user" class="flex items-center gap-2">
+            <img :src="user.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed='+user.username" class="w-8 h-8 rounded-full border border-pink-200 bg-pink-50">
+            <button @click="logout" class="text-xs text-slate-400">退出</button>
+        </div>
+        <button v-else @click="showAuthModal = true" class="text-sm font-bold text-pink-500 bg-pink-50 px-3 py-1 rounded-full">
+            登录/注册
         </button>
     </header>
 
-    <!-- 筛选区域 -->
-    <div class="px-4 py-4 sticky top-16 z-30 bg-[#fdf2f8]/95 backdrop-blur-sm">
-        <div class="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
-            <button 
-                v-for="g in games" :key="g"
-                @click="filterGame = g"
-                class="whitespace-nowrap px-3 py-1 rounded-full text-xs font-bold transition-all border"
-                :class="filterGame === g ? 'bg-pink-500 text-white border-pink-500 shadow-md' : 'bg-white text-slate-500 border-slate-200'"
-            >
-                {{ g }}
-            </button>
+    <!-- 筛选 -->
+    <div class="px-4 py-3 bg-white border-b border-slate-50 overflow-x-auto hide-scrollbar flex gap-2">
+        <button v-for="g in games" :key="g" @click="filterGame = g"
+            class="whitespace-nowrap px-3 py-1 rounded-full text-xs transition-all border"
+            :class="filterGame === g ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'">
+            {{ g }}
+        </button>
+    </div>
+
+    <!-- 帖子列表 -->
+    <main class="p-4 space-y-4">
+        <div v-if="loading" class="text-center py-10 text-slate-300"><i class="ri-loader-4-line animate-spin text-2xl"></i></div>
+        
+        <div v-for="post in filteredPosts" :key="post.id" class="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+            <!-- 帖子头部 -->
+            <div class="flex gap-3 mb-3">
+                <div class="w-10 h-10 rounded-full bg-slate-100 overflow-hidden flex-shrink-0">
+                    <img :src="post.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed='+post.username" class="w-full h-full object-cover">
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex justify-between items-start">
+                        <span class="font-bold text-slate-800 text-sm">{{ post.nickname }}</span>
+                        <span class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-500">{{ post.game }}</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-0.5">{{ post.timeStr }}</p>
+                </div>
+            </div>
+
+            <!-- 帖子内容 -->
+            <div class="text-sm text-slate-700 mb-3 leading-relaxed whitespace-pre-wrap">{{ post.desc }}</div>
+            <div v-if="post.requirement" class="text-sm text-pink-500 mb-3 bg-pink-50 p-2 rounded-lg">
+                <span class="font-bold">✨ 扩列要求：</span>{{ post.requirement }}
+            </div>
+
+            <!-- 图片展示 (1-3张) -->
+            <div v-if="post.images && post.images.length" class="grid gap-1 mb-3 rounded-lg overflow-hidden"
+                 :class="'img-grid-' + (post.images.length > 3 ? 3 : post.images.length)">
+                <div v-for="(img, idx) in post.images" :key="idx" 
+                     class="aspect-square bg-slate-100 cursor-pointer overflow-hidden"
+                     @click="previewImage(img)">
+                    <img :src="img" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500">
+                </div>
+            </div>
+
+            <!-- 底部按钮 -->
+            <div class="flex items-center justify-between pt-3 border-t border-slate-50">
+                <button @click="toggleComments(post)" class="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
+                    <i class="ri-chat-3-line"></i> {{ post.commentsCount || 0 }}
+                </button>
+                <button @click="likePost(post)" class="flex items-center gap-1 text-sm transition-colors" 
+                        :class="post.likedLocal ? 'text-pink-500' : 'text-slate-400'">
+                    <i :class="post.likedLocal ? 'ri-heart-fill' : 'ri-heart-line'"></i> {{ post.likes + (post.likedLocal ? 1 : 0) }}
+                </button>
+            </div>
+
+            <!-- 评论区 (展开时显示) -->
+            <div v-if="post.showComments" class="mt-4 pt-4 border-t border-dashed border-slate-200 bg-slate-50 -mx-4 px-4 pb-2 animate-in fade-in slide-in-from-top-2">
+                <div v-if="post.loadingComments" class="text-center text-xs text-slate-400 py-2">加载评论中...</div>
+                <div v-else class="space-y-3 mb-4">
+                    <div v-if="!post.comments || post.comments.length === 0" class="text-center text-xs text-slate-300 py-2">暂无评论，快来抢沙发</div>
+                    <div v-for="cmt in post.comments" :key="cmt.id" class="flex gap-2 text-xs">
+                        <span class="font-bold text-slate-600 whitespace-nowrap">{{ cmt.nickname }}:</span>
+                        <span class="text-slate-700 break-all">{{ cmt.content }}</span>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <input v-model="post.newComment" placeholder="回点什么..." class="flex-1 bg-white border border-slate-200 rounded-full px-3 py-1.5 text-xs focus:outline-none focus:border-pink-300">
+                    <button @click="submitComment(post)" class="bg-slate-800 text-white text-xs px-3 py-1 rounded-full font-bold">发送</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 悬浮发布按钮 -->
+    <button @click="checkAuthAndPost" class="fixed bottom-6 right-6 bg-gradient-to-r from-pink-500 to-purple-500 text-white w-12 h-12 rounded-full shadow-lg shadow-pink-200 flex items-center justify-center text-2xl active:scale-90 transition-transform z-30">
+        <i class="ri-add-line"></i>
+    </button>
+
+    <!-- 登录/注册弹窗 -->
+    <div v-if="showAuthModal" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+            <div class="flex text-sm font-bold border-b">
+                <button @click="authMode='login'" class="flex-1 py-3 transition-colors" :class="authMode==='login'?'text-pink-500 border-b-2 border-pink-500':'text-slate-400'">登录</button>
+                <button @click="authMode='register'" class="flex-1 py-3 transition-colors" :class="authMode==='register'?'text-pink-500 border-b-2 border-pink-500':'text-slate-400'">注册新账号</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div v-if="authMode==='register'" class="flex justify-center mb-2">
+                     <div class="w-16 h-16 rounded-full bg-slate-50 border border-dashed border-slate-300 flex items-center justify-center relative overflow-hidden cursor-pointer" @click="$refs.avatarInput.click()">
+                        <img v-if="authForm.avatar" :src="authForm.avatar" class="w-full h-full object-cover">
+                        <i v-else class="ri-camera-line text-slate-300 text-xl"></i>
+                        <input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarUpload">
+                     </div>
+                </div>
+                <input v-model="authForm.username" placeholder="用户名 (账号)" class="w-full bg-slate-50 border-none rounded-lg px-4 py-2 text-sm">
+                <input v-model="authForm.password" type="password" placeholder="密码" class="w-full bg-slate-50 border-none rounded-lg px-4 py-2 text-sm">
+                <input v-if="authMode==='register'" v-model="authForm.nickname" placeholder="你的昵称" class="w-full bg-slate-50 border-none rounded-lg px-4 py-2 text-sm">
+                
+                <button @click="handleAuth" :disabled="isAuthing" class="w-full bg-pink-500 text-white font-bold py-2 rounded-lg shadow-md disabled:opacity-50">
+                    {{ isAuthing ? '处理中...' : (authMode==='login'?'登 录':'注 册') }}
+                </button>
+            </div>
+            <button @click="showAuthModal = false" class="w-full py-3 text-slate-400 text-xs border-t">暂不登录，随便看看</button>
         </div>
     </div>
 
-    <!-- 列表区域 -->
-    <main class="px-4 space-y-4">
-        <div v-if="loading" class="text-center py-20 text-pink-300">
-            <i class="ri-loader-4-line text-3xl animate-spin"></i>
-            <p class="text-sm mt-2">正在召唤队友...</p>
-        </div>
-
-        <div v-else-if="filteredPosts.length === 0" class="text-center py-20 text-slate-400">
-            <i class="ri-ghost-line text-4xl mb-2"></i>
-            <p>还没有这个游戏的帖子哦~</p>
-        </div>
-
-        <transition-group name="slide-up">
-            <div v-for="post in filteredPosts" :key="post.id" class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-                <!-- 头部信息 -->
-                <div class="flex justify-between items-start mb-3">
-                    <div class="flex gap-3">
-                        <!-- 头像 (如果有图片显示图片，没有显示默认) -->
-                        <div class="w-12 h-12 rounded-full bg-slate-100 flex-shrink-0 overflow-hidden border border-slate-200">
-                            <img v-if="post.imageBase64" :src="post.imageBase64" class="w-full h-full object-cover">
-                            <div v-else class="w-full h-full flex items-center justify-center text-slate-300">
-                                <i class="ri-user-smile-line text-xl"></i>
-                            </div>
-                        </div>
-                        <div>
-                            <div class="flex items-center gap-2">
-                                <span class="font-bold text-slate-800">{{ post.nickname }}</span>
-                                <span class="text-[10px] px-1.5 py-0.5 rounded-full" 
-                                      :class="post.gender === '小姐姐' ? 'bg-pink-100 text-pink-500' : 'bg-blue-100 text-blue-500'">
-                                    {{ post.gender }}
-                                </span>
-                            </div>
-                            <div class="flex items-center gap-2 mt-1">
-                                <span class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
-                                    {{ post.game }}
-                                </span>
-                                <span class="text-xs text-slate-400">{{ post.timeStr }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 内容 -->
-                <div class="space-y-2 mb-4">
-                    <div class="bg-slate-50 p-2.5 rounded-xl text-sm text-slate-600 leading-relaxed">
-                        <span class="font-bold text-slate-400 mr-1">#关于我</span>
-                        {{ post.desc }}
-                    </div>
-                    <div v-if="post.requirement" class="bg-pink-50/50 p-2.5 rounded-xl text-sm text-slate-600 leading-relaxed">
-                        <span class="font-bold text-pink-300 mr-1">#找CP</span>
-                        {{ post.requirement }}
-                    </div>
-                </div>
-
-                <!-- 底部操作 -->
-                <div class="flex items-center justify-between pt-2 border-t border-slate-50">
-                    <button @click="likePost(post)" class="flex items-center gap-1 text-sm text-slate-400 hover:text-pink-500 transition-colors" :class="{'text-pink-500': post.likedLocal}">
-                        <i :class="post.likedLocal ? 'ri-heart-fill' : 'ri-heart-line'"></i>
-                        <span>{{ post.likes + (post.likedLocal ? 1 : 0) }}</span>
-                    </button>
-                    <button class="bg-slate-800 text-white text-xs px-3 py-1.5 rounded-lg font-bold hover:bg-slate-700">
-                        <i class="ri-chat-1-line mr-1"></i> DDTA
-                    </button>
-                </div>
-            </div>
-        </transition-group>
-    </main>
-
     <!-- 发布弹窗 -->
-    <transition name="fade">
-        <div v-if="showPostModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4">
-            <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl h-[85vh] sm:h-auto flex flex-col">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-bold text-lg">✨ 发布扩列</h3>
-                    <button @click="showPostModal = false" class="text-slate-400 hover:text-slate-600 text-xl">
-                        <i class="ri-close-circle-fill"></i>
-                    </button>
+    <div v-if="showPostModal" class="fixed inset-0 z-50 bg-white flex flex-col">
+        <div class="flex items-center justify-between p-4 border-b border-slate-100">
+            <button @click="showPostModal = false" class="text-slate-500">取消</button>
+            <h3 class="font-bold text-slate-800">发布扩列</h3>
+            <button @click="submitPost" :disabled="submitting" class="bg-pink-500 text-white px-4 py-1 rounded-full text-sm font-bold disabled:opacity-50">
+                {{ submitting ? '发布中' : '发布' }}
+            </button>
+        </div>
+        <div class="p-4 flex-1 overflow-y-auto">
+            <textarea v-model="postForm.content" class="w-full h-32 text-sm resize-none focus:outline-none placeholder-slate-300" placeholder="介绍一下你自己，声音、性格、擅长位置..."></textarea>
+            
+            <!-- 图片上传区 (最多3张) -->
+            <div class="flex gap-2 mb-4">
+                <div v-for="(img, idx) in postForm.images" :key="idx" class="w-20 h-20 rounded-lg bg-slate-100 relative overflow-hidden group">
+                    <img :src="img" class="w-full h-full object-cover">
+                    <button @click="removeImage(idx)" class="absolute top-0 right-0 bg-black/50 text-white w-5 h-5 flex items-center justify-center rounded-bl-lg text-xs">&times;</button>
                 </div>
-
-                <div class="flex-1 overflow-y-auto space-y-4 pr-1">
-                    <!-- 头像上传 -->
-                    <div class="flex justify-center">
-                        <div @click="$refs.fileInput.click()" class="w-20 h-20 rounded-full bg-slate-50 border-2 border-dashed border-pink-200 flex flex-col items-center justify-center text-pink-300 cursor-pointer overflow-hidden relative">
-                            <img v-if="form.imageBase64" :src="form.imageBase64" class="w-full h-full object-cover">
-                            <div v-else class="text-center">
-                                <i class="ri-camera-fill text-xl"></i>
-                                <span class="text-[10px] block">传头像</span>
-                            </div>
-                            <input type="file" ref="fileInput" @change="handleImageUpload" class="hidden" accept="image/*">
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="text-xs font-bold text-slate-500 mb-1 block">昵称</label>
-                            <input v-model="form.nickname" class="w-full bg-slate-50 border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-200 outline-none" placeholder="你的名字">
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-slate-500 mb-1 block">性别</label>
-                            <select v-model="form.gender" class="w-full bg-slate-50 border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-200 outline-none">
-                                <option>小姐姐</option>
-                                <option>小哥哥</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="text-xs font-bold text-slate-500 mb-1 block">常玩游戏</label>
-                        <select v-model="form.game" class="w-full bg-slate-50 border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-200 outline-none">
-                            <option v-for="g in games.slice(1)" :key="g">{{ g }}</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="text-xs font-bold text-slate-500 mb-1 block">关于我</label>
-                        <textarea v-model="form.desc" rows="3" class="w-full bg-slate-50 border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-200 outline-none resize-none" placeholder="比如：人皮话多，不压力..."></textarea>
-                    </div>
-                    
-                    <div>
-                        <label class="text-xs font-bold text-slate-500 mb-1 block">找什么样的</label>
-                        <textarea v-model="form.requirement" rows="2" class="w-full bg-slate-50 border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-200 outline-none resize-none" placeholder="比如：野王dd..."></textarea>
-                    </div>
+                <div v-if="postForm.images.length < 3" @click="$refs.postImgInput.click()" class="w-20 h-20 rounded-lg border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 cursor-pointer active:bg-slate-50">
+                    <i class="ri-image-add-line text-xl"></i>
+                    <span class="text-[10px]">添加图片</span>
                 </div>
+                <input type="file" ref="postImgInput" hidden accept="image/*" @change="handlePostImageUpload">
+            </div>
 
-                <div class="pt-4 mt-2 border-t border-slate-100">
-                    <button @click="submitPost" :disabled="submitting" class="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-pink-200 active:scale-95 transition-transform disabled:opacity-50">
-                        {{ submitting ? '发送中...' : '发射信号 📡' }}
-                    </button>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs font-bold text-slate-400 block mb-1">玩什么游戏</label>
+                    <select v-model="postForm.game" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-sm border-none outline-none">
+                        <option v-for="g in games.slice(1)" :key="g">{{ g }}</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-400 block mb-1">对CP/队友的要求</label>
+                    <input v-model="postForm.requirement" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-sm border-none outline-none" placeholder="比如：不压力，心态好...">
                 </div>
             </div>
         </div>
-    </transition>
+    </div>
+
+    <!-- 图片预览大图 -->
+    <div v-if="previewImg" @click="previewImg=null" class="fixed inset-0 z-[60] bg-black flex items-center justify-center">
+        <img :src="previewImg" class="max-w-full max-h-full">
+    </div>
 
 </div>
 
@@ -202,149 +197,208 @@
 
     createApp({
         setup() {
-            // API 地址：指向你的 Vercel 函数
-            const API_URL = '/api/cp'; 
-            
+            const API = '/api/cp';
+            const user = ref(null);
+            const posts = ref([]);
             const loading = ref(true);
+            
+            // 状态
+            const showAuthModal = ref(false);
+            const authMode = ref('login'); // login | register
             const showPostModal = ref(false);
             const submitting = ref(false);
-            const posts = ref([]);
-            
+            const isAuthing = ref(false);
+            const previewImg = ref(null);
+
             const games = ['全部', '王者荣耀', '原神', '英雄联盟', '和平精英', '蛋仔派对', '无畏契约', '其他'];
             const filterGame = ref('全部');
 
-            const form = ref({
-                nickname: '',
-                gender: '小姐姐',
-                game: '王者荣耀',
-                desc: '',
-                requirement: '',
-                imageBase64: ''
+            // 表单
+            const authForm = ref({ username: '', password: '', nickname: '', avatar: '' });
+            const postForm = ref({ content: '', game: '王者荣耀', requirement: '', images: [] });
+
+            // 初始化
+            onMounted(() => {
+                const saved = localStorage.getItem('cp_user');
+                if (saved) user.value = JSON.parse(saved);
+                fetchPosts();
             });
 
-            // 获取数据
-            const fetchPosts = async () => {
+            const refresh = () => fetchPosts();
+            const logout = () => { user.value = null; localStorage.removeItem('cp_user'); };
+
+            // --- 图片压缩逻辑 (核心) ---
+            const compressImage = (file, maxWidth = 800, quality = 0.6) => {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            let w = img.width;
+                            let h = img.height;
+                            if (w > maxWidth) { h *= maxWidth / w; w = maxWidth; }
+                            canvas.width = w;
+                            canvas.height = h;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, w, h);
+                            // 输出 compressed base64
+                            resolve(canvas.toDataURL('image/jpeg', quality));
+                        };
+                        img.src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                });
+            };
+
+            // --- 鉴权逻辑 ---
+            const handleAvatarUpload = async (e) => {
+                if(e.target.files[0]) authForm.value.avatar = await compressImage(e.target.files[0], 200, 0.5); // 头像压缩狠一点
+            };
+            
+            const handleAuth = async () => {
+                if (!authForm.value.username || !authForm.value.password) return alert('请输入账号密码');
+                isAuthing.value = true;
                 try {
-                    const res = await fetch(API_URL);
-                    if (res.ok) {
-                        posts.value = await res.json();
+                    const res = await fetch(`${API}?action=${authMode.value}`, {
+                        method: 'POST',
+                        body: JSON.stringify(authForm.value)
+                    });
+                    const data = await res.json();
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        user.value = data.user;
+                        localStorage.setItem('cp_user', JSON.stringify(data.user));
+                        showAuthModal.value = false;
+                        // 如果是登录后，重置表单
+                        authForm.value = { username: '', password: '', nickname: '', avatar: '' };
                     }
-                } catch (e) {
-                    console.error("Fetch error", e);
-                } finally {
-                    loading.value = false;
+                } catch (e) { alert('网络错误'); }
+                isAuthing.value = false;
+            };
+
+            // --- 帖子逻辑 ---
+            const fetchPosts = async () => {
+                loading.value = true;
+                try {
+                    const res = await fetch(API);
+                    posts.value = await res.json();
+                } catch(e) {}
+                loading.value = false;
+            };
+
+            const checkAuthAndPost = () => {
+                if (!user.value) {
+                    showAuthModal.value = true;
+                } else {
+                    showPostModal.value = true;
                 }
             };
 
-            // 计算属性：筛选逻辑
+            const handlePostImageUpload = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                if (postForm.value.images.length >= 3) return alert('最多3张哦');
+                // 压缩到宽800，质量0.5，通常<100KB
+                const base64 = await compressImage(file, 800, 0.5);
+                postForm.value.images.push(base64);
+                // 清空input允许重复选同一张（如果删除了）
+                e.target.value = ''; 
+            };
+            
+            const removeImage = (idx) => postForm.value.images.splice(idx, 1);
+
+            const submitPost = async () => {
+                if (!postForm.value.content) return alert('说点什么吧');
+                submitting.value = true;
+                try {
+                    const payload = {
+                        user: user.value,
+                        ...postForm.value
+                    };
+                    const res = await fetch(`${API}?action=create_post`, {
+                        method: 'POST',
+                        body: JSON.stringify(payload)
+                    });
+                    if (res.ok) {
+                        showPostModal.value = false;
+                        postForm.value = { content: '', game: '王者荣耀', requirement: '', images: [] };
+                        fetchPosts();
+                    } else {
+                        const err = await res.json();
+                        alert(err.error || '发布失败，图片可能太大了');
+                    }
+                } catch (e) { alert('发布失败'); }
+                submitting.value = false;
+            };
+
+            // --- 互动逻辑 ---
+            const likePost = async (post) => {
+                if(post.likedLocal) return;
+                post.likedLocal = true;
+                post.likes++;
+                await fetch(`${API}?action=like`, { method: 'POST', body: JSON.stringify({ id: post.id }) });
+            };
+
+            const toggleComments = async (post) => {
+                post.showComments = !post.showComments;
+                if (post.showComments && !post.commentsLoaded) {
+                    post.loadingComments = true;
+                    try {
+                        const res = await fetch(`${API}?action=get_comments&postId=${post.id}`);
+                        post.comments = await res.json();
+                        post.commentsLoaded = true;
+                    } catch(e){}
+                    post.loadingComments = false;
+                }
+            };
+
+            const submitComment = async (post) => {
+                if (!user.value) return showAuthModal.value = true;
+                if (!post.newComment) return;
+                
+                const tempComment = {
+                    id: Date.now(),
+                    nickname: user.value.nickname,
+                    content: post.newComment
+                };
+                
+                // 乐观更新
+                if (!post.comments) post.comments = [];
+                post.comments.push(tempComment);
+                post.commentsCount = (post.commentsCount || 0) + 1;
+                
+                const txt = post.newComment;
+                post.newComment = '';
+
+                await fetch(`${API}?action=add_comment`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        postId: post.id,
+                        user: user.value,
+                        content: txt
+                    })
+                });
+            };
+            
+            const previewImage = (src) => previewImg.value = src;
+
             const filteredPosts = computed(() => {
                 if (filterGame.value === '全部') return posts.value;
                 return posts.value.filter(p => p.game === filterGame.value);
             });
 
-            // 图片处理：压缩 + 转Base64
-            const handleImageUpload = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                // 使用 Canvas 压缩图片
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
-                        
-                        // 限制最大宽高，减小体积
-                        const MAX_SIZE = 300; 
-                        let width = img.width;
-                        let height = img.height;
-
-                        if (width > height) {
-                            if (width > MAX_SIZE) {
-                                height *= MAX_SIZE / width;
-                                width = MAX_SIZE;
-                            }
-                        } else {
-                            if (height > MAX_SIZE) {
-                                width *= MAX_SIZE / height;
-                                height = MAX_SIZE;
-                            }
-                        }
-
-                        canvas.width = width;
-                        canvas.height = height;
-                        ctx.drawImage(img, 0, 0, width, height);
-
-                        // 压缩质量 0.6
-                        form.value.imageBase64 = canvas.toDataURL('image/jpeg', 0.6);
-                    };
-                    img.src = event.target.result;
-                };
-                reader.readAsDataURL(file);
-            };
-
-            // 提交发布
-            const submitPost = async () => {
-                if (!form.value.nickname || !form.value.desc) {
-                    alert("昵称和介绍记得填哦~");
-                    return;
-                }
-                
-                submitting.value = true;
-                try {
-                    const res = await fetch(API_URL, {
-                        method: 'POST',
-                        body: JSON.stringify(form.value)
-                    });
-                    
-                    if (res.ok) {
-                        showPostModal.value = false;
-                        // 重置表单
-                        form.value.desc = '';
-                        form.value.requirement = '';
-                        form.value.imageBase64 = '';
-                        // 刷新列表
-                        await fetchPosts();
-                    } else {
-                        alert("发布失败，可能是图片太大了？");
-                    }
-                } catch (e) {
-                    alert("网络错误");
-                } finally {
-                    submitting.value = false;
-                }
-            };
-
-            // 点赞逻辑
-            const likePost = async (post) => {
-                if (post.likedLocal) return;
-                
-                // 乐观更新 UI
-                post.likedLocal = true;
-                
-                try {
-                    await fetch(API_URL, {
-                        method: 'PUT',
-                        body: JSON.stringify({ id: post.id })
-                    });
-                } catch(e) {
-                    console.error("Like failed");
-                }
-            };
-
-            onMounted(() => {
-                fetchPosts();
-            });
-
             return {
-                loading, posts, filteredPosts, games, filterGame,
-                showPostModal, form, submitting,
-                handleImageUpload, submitPost, likePost
+                user, posts, loading, games, filterGame, filteredPosts,
+                showAuthModal, authMode, authForm, isAuthing,
+                showPostModal, postForm, submitting, previewImg,
+                refresh, logout, handleAuth, handleAvatarUpload,
+                checkAuthAndPost, handlePostImageUpload, removeImage, submitPost,
+                likePost, toggleComments, submitComment, previewImage
             };
         }
     }).mount('#app');
 </script>
-
 </body>
 </html>
