@@ -125,6 +125,14 @@
             <p class="text-sm font-medium tracking-widest">正在寻找心动信号...</p>
         </div>
 
+        <!-- 错误提示 (新) -->
+        <div v-else-if="error" class="text-center py-32 animate-fade-in">
+             <div class="text-6xl mb-4">⚠️</div>
+             <h3 class="text-slate-800 font-bold text-lg">连接出错了</h3>
+             <p class="text-slate-400 text-sm mt-1 mb-4">{{ error }}</p>
+             <button @click="refresh" class="bg-rose-500 text-white px-6 py-2 rounded-full font-bold shadow-lg hover:bg-rose-600 transition-colors">重试一下</button>
+        </div>
+
         <!-- 空状态 -->
         <div v-else-if="posts.length === 0" class="text-center py-32 animate-fade-in">
             <div class="text-6xl mb-4">📪</div>
@@ -345,6 +353,7 @@
             const user = ref(null);
             const allPosts = ref([]); // 原始数据
             const loading = ref(true);
+            const error = ref(''); // 错误信息
             const scrollY = ref(0);
             
             // 响应式状态
@@ -366,6 +375,12 @@
             const windowWidth = ref(window.innerWidth);
 
             const updateColumns = () => {
+                // 容错检查
+                if (!Array.isArray(allPosts.value)) {
+                     allPosts.value = [];
+                     return;
+                }
+
                 // 根据屏幕宽度决定列数
                 const colCount = windowWidth.value < 640 ? 1 : (windowWidth.value < 1024 ? 2 : 3);
                 
@@ -373,7 +388,7 @@
                 const newCols = Array.from({ length: colCount }, () => []);
                 const filtered = filterGame.value === '全部' ? allPosts.value : allPosts.value.filter(p => p.game === filterGame.value);
                 
-                // 简单分配策略：轮流发牌 (保证时间顺序大致正确：左->右，上->下)
+                // 简单分配策略
                 filtered.forEach((post, index) => {
                     newCols[index % colCount].push(post);
                 });
@@ -407,11 +422,27 @@
             // --- API 交互 ---
             const fetchPosts = async () => {
                 loading.value = true;
+                error.value = '';
                 try {
                     const res = await fetch(API);
+                    if (!res.ok) throw new Error('连接服务器失败 (' + res.status + ')');
+                    
                     const data = await res.json();
-                    allPosts.value = data;
-                } catch(e) { console.error(e); }
+                    
+                    // ★ 修复重点：确保数据是数组
+                    if (Array.isArray(data)) {
+                        allPosts.value = data;
+                    } else if (data.error) {
+                        throw new Error(data.error);
+                    } else {
+                        throw new Error('数据格式错误');
+                    }
+
+                } catch(e) { 
+                    console.error(e); 
+                    error.value = e.message || '加载失败，请重试';
+                    allPosts.value = []; // 防止 Masonry 崩溃
+                }
                 loading.value = false;
                 updateColumns();
             };
@@ -420,16 +451,11 @@
             const likeCooldown = ref(false); // 防抖锁
 
             const isLiked = (post) => {
-                // 1. 如果有后端返回的 likedIds
                 if (post.likedIds && post.likedIds.length > 0) {
-                    // 检查登录用户
                     if (user.value) {
                         return post.likedIds.includes(`user:${user.value.username}`);
                     }
-                    // 检查本地记录的游客标识 (LocalStorage)
                     const localLikes = JSON.parse(localStorage.getItem('cp_likes_record') || '[]');
-                    // 这里没办法跟后端完全一致，因为前端不知道自己的 IP
-                    // 所以我们退而求其次：游客模式下，依赖 LocalStorage
                     return localLikes.includes(post.id);
                 }
                 return false;
@@ -453,10 +479,8 @@
                             localLikes.splice(idx, 1);
                             localStorage.setItem('cp_likes_record', JSON.stringify(localLikes));
                         }
-                        // 强行刷新视图依赖
-                        post.likedIds = []; // 假装清空一下触发重绘 (不完美但有效)
+                        post.likedIds = []; 
                     } else {
-                         // 模拟从 likedIds 移除自己
                          post.likedIds = post.likedIds.filter(id => id !== `user:${user.value.username}`);
                     }
                 } else {
@@ -466,7 +490,6 @@
                         const localLikes = JSON.parse(localStorage.getItem('cp_likes_record') || '[]');
                         localLikes.push(post.id);
                         localStorage.setItem('cp_likes_record', JSON.stringify(localLikes));
-                         // 强行刷新
                         if(!post.likedIds) post.likedIds = [];
                         post.likedIds.push('temp'); // 占位
                     } else {
@@ -480,8 +503,7 @@
                         method: 'POST', 
                         body: JSON.stringify({ id: post.id, user: user.value }) 
                     });
-                    const data = await res.json();
-                    // 可以在这里根据 data.identifier 修正本地存储
+                    await res.json();
                 } catch (e) {
                     // 失败回滚
                     if (wasLiked) post.likes++; else post.likes--;
@@ -627,7 +649,7 @@
             const previewImage = (list, idx) => preview.value = { show: true, list, idx };
 
             return {
-                user, columns, loading, games, filterGame, changeFilter,
+                user, columns, loading, error, games, filterGame, changeFilter,
                 showAuthModal, authMode, authForm, isAuthing,
                 showPostModal, postForm, submitting, preview, scrollY,
                 refresh: fetchPosts, logout, handleAuth, handleAvatarUpload,
