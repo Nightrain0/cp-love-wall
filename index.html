@@ -12,10 +12,10 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
-        /* 游戏标签色 */
-        .tag-wzry { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
-        .tag-ys { background: #f0f9ff; color: #0369a1; border: 1px solid #e0f2fe; }
-        .tag-lol { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
+        
+        /* 增加光遇的标签配色风格 (如果后续需要用) */
+        .tag-sky { background: #e0f2fe; color: #0ea5e9; border: 1px solid #bae6fd; }
+        
         .img-grid-1 { grid-template-columns: 1fr; }
         .img-grid-2 { grid-template-columns: 1fr 1fr; }
         .img-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
@@ -127,9 +127,13 @@
             </div>
             <div class="p-6 space-y-4">
                 <div v-if="authMode==='register'" class="flex justify-center mb-2">
-                     <div class="w-16 h-16 rounded-full bg-slate-50 border border-dashed border-slate-300 flex items-center justify-center relative overflow-hidden cursor-pointer" @click="$refs.avatarInput.click()">
+                     <div class="w-16 h-16 rounded-full bg-slate-50 border border-dashed border-slate-300 flex items-center justify-center relative overflow-hidden cursor-pointer group" @click="$refs.avatarInput.click()">
                         <img v-if="authForm.avatar" :src="authForm.avatar" class="w-full h-full object-cover">
                         <i v-else class="ri-camera-line text-slate-300 text-xl"></i>
+                        <!-- 显示大小 -->
+                        <div v-if="authForm.avatar" class="absolute bottom-0 w-full bg-black/50 text-white text-[8px] text-center py-0.5">
+                            {{ getSizeKB(authForm.avatar) }}
+                        </div>
                         <input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarUpload">
                      </div>
                 </div>
@@ -162,6 +166,10 @@
                 <div v-for="(img, idx) in postForm.images" :key="idx" class="w-20 h-20 rounded-lg bg-slate-100 relative overflow-hidden group">
                     <img :src="img" class="w-full h-full object-cover">
                     <button @click="removeImage(idx)" class="absolute top-0 right-0 bg-black/50 text-white w-5 h-5 flex items-center justify-center rounded-bl-lg text-xs">&times;</button>
+                    <!-- 显示大小 -->
+                    <div class="absolute bottom-0 left-0 bg-black/60 text-white text-[9px] px-1 rounded-tr">
+                        {{ getSizeKB(img) }}
+                    </div>
                 </div>
                 <div v-if="postForm.images.length < 3" @click="$refs.postImgInput.click()" class="w-20 h-20 rounded-lg border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 cursor-pointer active:bg-slate-50">
                     <i class="ri-image-add-line text-xl"></i>
@@ -186,8 +194,8 @@
     </div>
 
     <!-- 图片预览大图 -->
-    <div v-if="previewImg" @click="previewImg=null" class="fixed inset-0 z-[60] bg-black flex items-center justify-center">
-        <img :src="previewImg" class="max-w-full max-h-full">
+    <div v-if="previewImg" @click="previewImg=null" class="fixed inset-0 z-[60] bg-black flex items-center justify-center p-2">
+        <img :src="previewImg" class="max-w-full max-h-full object-contain">
     </div>
 
 </div>
@@ -210,7 +218,8 @@
             const isAuthing = ref(false);
             const previewImg = ref(null);
 
-            const games = ['全部', '王者荣耀', '原神', '英雄联盟', '和平精英', '蛋仔派对', '无畏契约', '其他'];
+            // 修改点：加入了“光遇”
+            const games = ['全部', '王者荣耀', '原神', '光遇', '英雄联盟', '和平精英', '蛋仔派对', '无畏契约', '其他'];
             const filterGame = ref('全部');
 
             // 表单
@@ -227,6 +236,15 @@
             const refresh = () => fetchPosts();
             const logout = () => { user.value = null; localStorage.removeItem('cp_user'); };
 
+            // --- 核心工具：获取 Base64 大小 ---
+            const getSizeKB = (base64Str) => {
+                if (!base64Str) return '';
+                // Base64 长度 * 0.75 大约等于 字节数
+                const bytes = base64Str.length * 0.75;
+                const kb = bytes / 1024;
+                return kb.toFixed(1) + ' KB';
+            };
+
             // --- 图片压缩逻辑 (核心) ---
             const compressImage = (file, maxWidth = 800, quality = 0.6) => {
                 return new Promise((resolve) => {
@@ -237,13 +255,25 @@
                             const canvas = document.createElement('canvas');
                             let w = img.width;
                             let h = img.height;
+                            
+                            // 保持宽高比缩放
                             if (w > maxWidth) { h *= maxWidth / w; w = maxWidth; }
+                            if (h > maxWidth) { w *= maxWidth / h; h = maxWidth; } // 高度也限制一下
+                            
                             canvas.width = w;
                             canvas.height = h;
                             const ctx = canvas.getContext('2d');
                             ctx.drawImage(img, 0, 0, w, h);
+                            
                             // 输出 compressed base64
-                            resolve(canvas.toDataURL('image/jpeg', quality));
+                            const result = canvas.toDataURL('image/jpeg', quality);
+                            
+                            // 调试信息
+                            const originSize = (file.size / 1024).toFixed(1) + 'KB';
+                            const newSize = (result.length * 0.75 / 1024).toFixed(1) + 'KB';
+                            console.log(`图片压缩: [${originSize}] -> [${newSize}]`);
+                            
+                            resolve(result);
                         };
                         img.src = e.target.result;
                     };
@@ -253,7 +283,10 @@
 
             // --- 鉴权逻辑 ---
             const handleAvatarUpload = async (e) => {
-                if(e.target.files[0]) authForm.value.avatar = await compressImage(e.target.files[0], 200, 0.5); // 头像压缩狠一点
+                if(e.target.files[0]) {
+                    // 头像还是保持小一点，200px够用了
+                    authForm.value.avatar = await compressImage(e.target.files[0], 200, 0.6);
+                }
             };
             
             const handleAuth = async () => {
@@ -271,7 +304,6 @@
                         user.value = data.user;
                         localStorage.setItem('cp_user', JSON.stringify(data.user));
                         showAuthModal.value = false;
-                        // 如果是登录后，重置表单
                         authForm.value = { username: '', password: '', nickname: '', avatar: '' };
                     }
                 } catch (e) { alert('网络错误'); }
@@ -300,10 +332,19 @@
                 const file = e.target.files[0];
                 if (!file) return;
                 if (postForm.value.images.length >= 3) return alert('最多3张哦');
-                // 压缩到宽800，质量0.5，通常<100KB
-                const base64 = await compressImage(file, 800, 0.5);
+                
+                // 修改点：画质升级
+                // 宽 1024px (原800), 质量 0.8 (原0.6)
+                // 这样图片会大一些，大概 150KB-250KB 一张
+                const base64 = await compressImage(file, 1024, 0.8);
+                
+                // 安全检查：放宽到 450KB 警告
+                const sizeKB = base64.length * 0.75 / 1024;
+                if (sizeKB > 450) {
+                    alert('这张图压缩后还是有点大(' + sizeKB.toFixed(0) + 'KB)，建议换张简单的，或者截个图再发~');
+                }
+                
                 postForm.value.images.push(base64);
-                // 清空input允许重复选同一张（如果删除了）
                 e.target.value = ''; 
             };
             
@@ -311,6 +352,14 @@
 
             const submitPost = async () => {
                 if (!postForm.value.content) return alert('说点什么吧');
+                
+                // 计算总大小检查
+                const totalSize = postForm.value.images.reduce((acc, img) => acc + (img.length * 0.75), 0);
+                // Firestore 限制 1MB = 1024KB，我们留 74KB 给文字和其他字段
+                if (totalSize > 950 * 1024) { 
+                     return alert(`图片总大小(${ (totalSize/1024).toFixed(0) }KB) 超过数据库限制啦！请删掉一张，或者选更简单的图。`);
+                }
+
                 submitting.value = true;
                 try {
                     const payload = {
@@ -327,7 +376,7 @@
                         fetchPosts();
                     } else {
                         const err = await res.json();
-                        alert(err.error || '发布失败，图片可能太大了');
+                        alert(err.error || '发布失败，可能总数据量太大');
                     }
                 } catch (e) { alert('发布失败'); }
                 submitting.value = false;
@@ -395,7 +444,7 @@
                 showPostModal, postForm, submitting, previewImg,
                 refresh, logout, handleAuth, handleAvatarUpload,
                 checkAuthAndPost, handlePostImageUpload, removeImage, submitPost,
-                likePost, toggleComments, submitComment, previewImage
+                likePost, toggleComments, submitComment, previewImage, getSizeKB
             };
         }
     }).mount('#app');
