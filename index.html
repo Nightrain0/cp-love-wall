@@ -174,6 +174,11 @@
             </div>
         </div>
         <div v-if="user" class="flex items-center gap-3">
+            <!-- 管理员入口 -->
+            <button v-if="user.isAdmin" @click="openAdminPanel" class="w-10 h-10 rounded-full bg-slate-800 text-white flex items-center justify-center shadow-md hover:bg-slate-900 transition-all border-2 border-white/50">
+                <i class="ri-admin-fill"></i>
+            </button>
+
             <!-- 优化：更醒目的私信入口，使用渐变色填充 -->
             <div class="relative cursor-pointer group transition-transform active:scale-90" @click="openInbox">
                 <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-fuchsia-200 hover:shadow-xl hover:-translate-y-0.5 transition-all border-2 border-white/50">
@@ -584,6 +589,62 @@
         </div>
     </div>
 
+    <!-- 管理面板 -->
+    <div v-if="showAdminModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/30 backdrop-blur-sm animate-fade-in">
+        <div class="glass-modal w-full max-w-md rounded-[32px] shadow-2xl flex flex-col h-[80vh] overflow-hidden">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-white/50">
+                <h3 class="font-extrabold text-lg text-slate-700">管理员后台</h3>
+                <button @click="showAdminModal=false" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-colors"><i class="ri-close-line"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-6">
+                
+                <!-- 添加用户部分 -->
+                <div class="bg-white/50 rounded-2xl p-4 border border-white/60">
+                    <h4 class="font-bold text-sm text-slate-600 mb-3 flex items-center gap-2"><i class="ri-user-add-fill"></i> 手动添加账号</h4>
+                    <div class="space-y-2">
+                        <div class="flex gap-2">
+                            <input v-model="adminForm.username" placeholder="账号" class="flex-1 bg-white rounded-lg px-3 py-2 text-xs border border-slate-200 focus:border-pink-300 outline-none">
+                            <input v-model="adminForm.password" placeholder="密码 (默认123456)" class="flex-1 bg-white rounded-lg px-3 py-2 text-xs border border-slate-200 focus:border-pink-300 outline-none">
+                        </div>
+                        <div class="flex gap-2">
+                            <input v-model="adminForm.nickname" placeholder="昵称" class="flex-1 bg-white rounded-lg px-3 py-2 text-xs border border-slate-200 focus:border-pink-300 outline-none">
+                            <select v-model="adminForm.gender" class="w-20 bg-white rounded-lg px-2 py-2 text-xs border border-slate-200 outline-none">
+                                <option value="male">男</option>
+                                <option value="female">女</option>
+                                <option value="secret">保密</option>
+                            </select>
+                        </div>
+                        <button @click="handleAdminAddUser" class="w-full bg-slate-800 text-white text-xs font-bold py-2 rounded-lg hover:bg-slate-900 transition-colors">创建账号</button>
+                    </div>
+                </div>
+
+                <!-- 用户列表部分 -->
+                <div class="bg-white/50 rounded-2xl p-4 border border-white/60">
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="font-bold text-sm text-slate-600 flex items-center gap-2"><i class="ri-group-fill"></i> 用户列表 ({{ adminUsers.length }})</h4>
+                        <button @click="fetchAdminUsers" class="text-xs text-blue-500 font-bold hover:underline">刷新</button>
+                    </div>
+                    <div class="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                        <div v-for="u in adminUsers" :key="u.username" class="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-100">
+                            <div class="flex items-center gap-2 overflow-hidden">
+                                <img :src="u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`" class="w-8 h-8 rounded-full bg-slate-50 object-cover">
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-1">
+                                        <span class="text-xs font-bold text-slate-700 truncate">{{ u.nickname }}</span>
+                                        <span v-if="u.isAdmin" class="text-[9px] bg-yellow-100 text-yellow-600 px-1 rounded">管理员</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 truncate">@{{ u.username }}</p>
+                                </div>
+                            </div>
+                            <button v-if="u.username !== 'admin'" @click="handleAdminDeleteUser(u.username)" class="text-xs text-red-400 hover:text-red-600 bg-red-50 px-2 py-1 rounded-lg font-bold">删除</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -605,6 +666,12 @@
             const showProfileModal = ref(false);
             const showInboxModal = ref(false);
             const showChatModal = ref(false);
+            // 新增管理模态框状态
+            const showAdminModal = ref(false);
+            // 管理数据
+            const adminUsers = ref([]);
+            const adminForm = ref({ username:'', password:'', nickname:'', gender:'secret', target:'all' });
+
             const chatContainer = ref(null);
             
             const submitting = ref(false);
@@ -680,6 +747,62 @@
                 if (!user.value) return showAuthModal.value = true;
                 showInboxModal.value = true;
                 checkUnread();
+            };
+
+            // 管理员功能
+            const openAdminPanel = () => {
+                if (!user.value || !user.value.isAdmin) return;
+                showAdminModal.value = true;
+                fetchAdminUsers();
+            };
+
+            const fetchAdminUsers = async () => {
+                try {
+                    const res = await fetch(`${API}?action=admin_get_users&requestor=${user.value.username}`);
+                    if (res.ok) {
+                        adminUsers.value = await res.json();
+                    }
+                } catch(e) { alert('加载用户列表失败'); }
+            };
+
+            const handleAdminAddUser = async () => {
+                if (!adminForm.value.username) return alert('请输入账号');
+                try {
+                    const res = await fetch(`${API}?action=admin_add_user`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            user: user.value,
+                            newUser: adminForm.value
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        alert('添加成功');
+                        adminForm.value = { username:'', password:'', nickname:'', gender:'secret', target:'all' };
+                        fetchAdminUsers();
+                    } else {
+                        alert(data.error || '添加失败');
+                    }
+                } catch(e) { alert('网络错误'); }
+            };
+
+            const handleAdminDeleteUser = async (targetUsername) => {
+                if (!confirm(`确定要删除用户 ${targetUsername} 吗？此操作不可恢复！`)) return;
+                try {
+                    const res = await fetch(`${API}?action=admin_delete_user`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            user: user.value,
+                            targetUsername
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        fetchAdminUsers();
+                    } else {
+                        alert(data.error || '删除失败');
+                    }
+                } catch(e) { alert('网络错误'); }
             };
 
             const openChat = async (target, chatId) => {
@@ -920,6 +1043,10 @@
                 showInboxModal, inboxList, showChatModal, chatMessages: mergedMessages, chatTarget, chatInput, totalUnread,
                 chatContainer,
                 
+                // 管理员相关
+                showAdminModal, adminUsers, adminForm,
+                openAdminPanel, fetchAdminUsers, handleAdminAddUser, handleAdminDeleteUser,
+
                 refresh:fetchPosts, handleAuth, handleAvatarUpload, handlePostImageUpload, submitPost,
                 deletePost, isLiked, handleLike, toggleComments, submitComment, deleteComment,
                 changeFilter, logout, checkAuthAndPost, removeImage, previewImage, scrollToTop,
