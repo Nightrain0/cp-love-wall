@@ -70,7 +70,6 @@ export default async function handler(req, res) {
                 const posts = [];
                 snap.forEach(d => {
                     const data = d.data();
-                    // 简单时间格式化
                     let timeStr = "刚刚";
                     if(data.timestamp && data.timestamp._seconds) {
                         const dt = new Date(data.timestamp._seconds * 1000);
@@ -92,13 +91,25 @@ export default async function handler(req, res) {
             return res.json({ success: true });
         }
 
+        // ★ 修改：删除帖子 (允许 Admin 或 作者本人)
         if (req.method === 'POST' && action === 'delete_post') {
-            if (body.user?.username !== 'admin') return res.status(403).json({ error: '无权操作' });
-            await db.collection('cp_posts').doc(body.id).delete();
+            if (!body.user) return res.status(401).json({ error: '请登录' });
+            const docRef = db.collection('cp_posts').doc(body.id);
+            const doc = await docRef.get();
+            
+            if (!doc.exists) return res.status(404).json({ error: '帖子不存在' });
+            const data = doc.data();
+
+            // 鉴权：既不是管理员，也不是帖子作者
+            if (body.user.username !== 'admin' && body.user.username !== data.username) {
+                return res.status(403).json({ error: '你不能删除别人的帖子哦' });
+            }
+
+            await docRef.delete();
             return res.json({ success: true });
         }
 
-        // 点赞 (Toggle)
+        // 点赞
         if (req.method === 'POST' && action === 'like') {
             const ref = db.collection('cp_posts').doc(body.id);
             const uid = getIdentifier(req, body.user);
@@ -138,12 +149,25 @@ export default async function handler(req, res) {
             return res.json({ success: true });
         }
 
+        // ★ 修改：删除评论 (允许 Admin 或 评论作者本人)
         if (req.method === 'POST' && action === 'delete_comment') {
-            if (body.user?.username !== 'admin') return res.status(403).json({ error: '无权操作' });
-            const ref = db.collection('cp_posts').doc(body.postId);
+            if (!body.user) return res.status(401).json({ error: '请登录' });
+            
+            const postRef = db.collection('cp_posts').doc(body.postId);
+            const commentRef = postRef.collection('comments').doc(body.commentId);
+            
+            // 为了鉴权，需要先读取评论数据
+            const commentDoc = await commentRef.get();
+            if (!commentDoc.exists) return res.status(404).json({ error: '评论不存在' });
+            const commentData = commentDoc.data();
+
+            if (body.user.username !== 'admin' && body.user.username !== commentData.username) {
+                return res.status(403).json({ error: '无权删除' });
+            }
+
             await db.runTransaction(async t => {
-                t.delete(ref.collection('comments').doc(body.commentId));
-                t.update(ref, { commentsCount: admin.firestore.FieldValue.increment(-1) });
+                t.delete(commentRef);
+                t.update(postRef, { commentsCount: admin.firestore.FieldValue.increment(-1) });
             });
             return res.json({ success: true });
         }
