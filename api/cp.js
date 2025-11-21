@@ -47,13 +47,11 @@ export default async function handler(req, res) {
             await db.runTransaction(async (t) => {
                 const doc = await t.get(chatRef);
                 let unreadMap = doc.exists ? (doc.data().unreadCounts || {}) : {};
-                // 对方未读 + 1
                 unreadMap[toUsername] = (unreadMap[toUsername] || 0) + 1;
                 
                 const chatData = { participants: [user.username, toUsername], lastMsg: content, lastSender: user.username, updatedAt: now, unreadCounts: unreadMap };
                 if (!doc.exists) chatData.createdAt = now;
                 
-                // 如果之前隐藏了，现在发新消息要让双方都可见
                 const hidden = doc.exists ? (doc.data().hiddenFor || []) : [];
                 if (hidden.length > 0) {
                     chatData.hiddenFor = hidden.filter(u => u !== user.username && u !== toUsername);
@@ -65,23 +63,18 @@ export default async function handler(req, res) {
             return res.json({ success: true });
         }
 
-        // ★ 修复：移除 orderBy 避免索引报错
         if (req.method === 'GET' && action === 'chat_inbox') {
             const myUsername = req.query.username;
-            // 只查参与者，不排序
             const snap = await db.collection('cp_chats').where('participants', 'array-contains', myUsername).get();
             
             const chats = [];
-            // 内存排序
             const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
                 .sort((a, b) => (b.updatedAt?.toMillis() || 0) - (a.updatedAt?.toMillis() || 0));
 
             for (const d of docs) {
-                // 跳过已删除（隐藏）的会话
                 if (d.hiddenFor && d.hiddenFor.includes(myUsername)) continue;
 
                 const otherUser = d.participants.find(p => p !== myUsername);
-                // 获取对方信息
                 let otherInfo = { nickname: otherUser, avatar: '' };
                 const uDoc = await db.collection('cp_users').doc(otherUser).get();
                 if (uDoc.exists) otherInfo = uDoc.data();
@@ -99,7 +92,6 @@ export default async function handler(req, res) {
             return res.json(chats);
         }
 
-        // ★ 标记已读
         if (req.method === 'POST' && action === 'chat_read') {
             const { user, chatId } = body;
             const ref = db.collection('cp_chats').doc(chatId);
@@ -115,7 +107,6 @@ export default async function handler(req, res) {
             return res.json({ success: true });
         }
 
-        // ★ 删除会话（隐藏）
         if (req.method === 'POST' && action === 'delete_chat_session') {
             const { user, chatId } = body;
             const ref = db.collection('cp_chats').doc(chatId);
@@ -146,14 +137,28 @@ export default async function handler(req, res) {
             return res.json(msgs);
         }
 
-        // --- 鉴权 & 帖子 (保持原有逻辑) ---
+        // --- 鉴权 & 帖子 ---
         if (action === 'register') {
-            const { username, password, nickname, avatar } = body;
+            // ★ 更新：注册时接收详细信息
+            const { username, password, nickname, avatar, gender, target, qq, wx } = body;
             if (username !== 'admin' && (!username || username.length < 8)) return res.status(400).json({ error: '账号需≥8位' });
             if (!password || password.length < 6) return res.status(400).json({ error: '密码需≥6位' });
             if ((await db.collection('cp_users').doc(username).get()).exists) return res.status(400).json({ error: '账号已存在' });
-            const u = { username, password: hashPassword(password), nickname, avatar: avatar||'', isAdmin: username==='admin', gender: 'secret', target: 'all', createdAt: new Date() };
-            await db.collection('cp_users').doc(username).set(u); delete u.password;
+            
+            const u = { 
+                username, 
+                password: hashPassword(password), 
+                nickname, 
+                avatar: avatar||'', 
+                isAdmin: username==='admin', 
+                gender: gender || 'secret', // 默认值
+                target: target || 'all',    // 默认值
+                qq: qq || '',
+                wx: wx || '',
+                createdAt: new Date() 
+            };
+            await db.collection('cp_users').doc(username).set(u); 
+            delete u.password;
             return res.json({ success: true, user: u });
         }
 
@@ -198,10 +203,19 @@ export default async function handler(req, res) {
         }
 
         if (req.method === 'POST' && action === 'create_post') {
+            // ★ 修复：使用 || 操作符提供默认值，防止 undefined 报错
             await db.collection('cp_posts').add({
-                nickname: body.user.nickname, username: body.user.username, avatar: body.user.avatar,
-                gender: body.user.gender, target: body.user.target, qq: body.user.qq, wx: body.user.wx,
-                game: body.game, desc: body.content, requirement: body.requirement, images: body.images,
+                nickname: body.user.nickname || '匿名', 
+                username: body.user.username, 
+                avatar: body.user.avatar || '',
+                gender: body.user.gender || 'secret', // 防止 undefined
+                target: body.user.target || 'all',    // 防止 undefined
+                qq: body.user.qq || '',
+                wx: body.user.wx || '',
+                game: body.game, 
+                desc: body.content, 
+                requirement: body.requirement || '', 
+                images: body.images || [],
                 likes: 0, likedIds: [], commentsCount: 0, timestamp: admin.firestore.FieldValue.serverTimestamp()
             });
             return res.json({ success: true });
