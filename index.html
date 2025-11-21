@@ -2,200 +2,302 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>CPDD 扩列小站</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <style>
-        body { background-color: #fff0f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        /* --- 全局美化 --- */
+        body { 
+            background: #fdf2f8; 
+            background-image: radial-gradient(circle at 10% 20%, rgb(254, 242, 242) 0%, rgb(255, 241, 242) 90.2%);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            -webkit-tap-highlight-color: transparent;
+        }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+        
+        /* 动画类 */
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
         
-        /* 增加光遇的标签配色风格 (如果后续需要用) */
-        .tag-sky { background: #e0f2fe; color: #0ea5e9; border: 1px solid #bae6fd; }
+        .slide-up-enter-active { transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .slide-up-enter-from { transform: translateY(20px); opacity: 0; }
         
+        /* 玻璃拟态卡片 */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 4px 20px -2px rgba(236, 72, 153, 0.05), 0 2px 6px -2px rgba(0,0,0,0.02);
+        }
+        
+        /* 标签样式 */
+        .game-tag { font-size: 10px; padding: 2px 8px; border-radius: 99px; font-weight: 600; letter-spacing: 0.5px; }
+        .tag-common { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+        .tag-active { background: #1e293b; color: #fff; border: 1px solid #1e293b; box-shadow: 0 2px 8px rgba(30,41,59,0.2); }
+
+        /* 图片网格 */
         .img-grid-1 { grid-template-columns: 1fr; }
         .img-grid-2 { grid-template-columns: 1fr 1fr; }
-        .img-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .img-grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+        /* 底部安全区适配 */
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .bottom-safe-margin { margin-bottom: env(safe-area-inset-bottom); }
     </style>
 </head>
 <body>
 
-<div id="app" class="max-w-2xl mx-auto min-h-screen pb-24 relative bg-gray-50 shadow-xl">
+<div id="app" class="max-w-2xl mx-auto min-h-screen pb-32 relative">
     
-    <!-- 顶部导航 -->
-    <header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-pink-100 px-4 h-14 flex items-center justify-between">
-        <div class="flex items-center gap-2" @click="refresh">
-            <span class="text-2xl">🎀</span>
-            <h1 class="text-lg font-bold text-slate-800">CPDD扩列</h1>
+    <!-- 顶部导航 (毛玻璃) -->
+    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-pink-100/50 px-4 h-14 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-2 cursor-pointer" @click="refresh">
+            <div class="bg-gradient-to-tr from-pink-400 to-purple-400 w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-md shadow-pink-200">
+                <i class="ri-star-smile-fill"></i>
+            </div>
+            <h1 class="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-purple-600">
+                CPDD扩列
+            </h1>
         </div>
-        <div v-if="user" class="flex items-center gap-2">
-            <img :src="user.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed='+user.username" class="w-8 h-8 rounded-full border border-pink-200 bg-pink-50">
-            <button @click="logout" class="text-xs text-slate-400">退出</button>
+        <div v-if="user" class="flex items-center gap-3">
+            <div class="flex flex-col items-end">
+                <span class="text-xs font-bold text-slate-700">{{ user.nickname }}</span>
+                <span v-if="user.isAdmin" class="text-[10px] bg-red-500 text-white px-1 rounded leading-tight">ADMIN</span>
+            </div>
+            <img :src="user.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed='+user.username" class="w-9 h-9 rounded-full border-2 border-white shadow-sm bg-pink-50">
+            <button @click="logout" class="text-slate-400 hover:text-pink-500 transition-colors"><i class="ri-logout-box-r-line text-lg"></i></button>
         </div>
-        <button v-else @click="showAuthModal = true" class="text-sm font-bold text-pink-500 bg-pink-50 px-3 py-1 rounded-full">
-            登录/注册
+        <button v-else @click="showAuthModal = true" class="text-xs font-bold text-white bg-gradient-to-r from-pink-500 to-purple-500 px-4 py-1.5 rounded-full shadow-md shadow-pink-200 active:scale-95 transition-transform">
+            登录 / 注册
         </button>
     </header>
 
-    <!-- 筛选 -->
-    <div class="px-4 py-3 bg-white border-b border-slate-50 overflow-x-auto hide-scrollbar flex gap-2">
-        <button v-for="g in games" :key="g" @click="filterGame = g"
-            class="whitespace-nowrap px-3 py-1 rounded-full text-xs transition-all border"
-            :class="filterGame === g ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'">
-            {{ g }}
-        </button>
+    <!-- 游戏筛选栏 -->
+    <div class="sticky top-14 z-30 bg-white/90 backdrop-blur-md border-b border-slate-50 px-4 py-3 overflow-x-auto hide-scrollbar">
+        <div class="flex gap-2">
+            <button v-for="g in games" :key="g" @click="filterGame = g"
+                class="game-tag whitespace-nowrap transition-all duration-300"
+                :class="filterGame === g ? 'tag-active' : 'tag-common'">
+                {{ g }}
+            </button>
+        </div>
     </div>
 
     <!-- 帖子列表 -->
-    <main class="p-4 space-y-4">
-        <div v-if="loading" class="text-center py-10 text-slate-300"><i class="ri-loader-4-line animate-spin text-2xl"></i></div>
-        
-        <div v-for="post in filteredPosts" :key="post.id" class="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
-            <!-- 帖子头部 -->
-            <div class="flex gap-3 mb-3">
-                <div class="w-10 h-10 rounded-full bg-slate-100 overflow-hidden flex-shrink-0">
-                    <img :src="post.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed='+post.username" class="w-full h-full object-cover">
-                </div>
-                <div class="flex-1 min-w-0">
-                    <div class="flex justify-between items-start">
-                        <span class="font-bold text-slate-800 text-sm">{{ post.nickname }}</span>
-                        <span class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-500">{{ post.game }}</span>
-                    </div>
-                    <p class="text-xs text-slate-400 mt-0.5">{{ post.timeStr }}</p>
-                </div>
-            </div>
-
-            <!-- 帖子内容 -->
-            <div class="text-sm text-slate-700 mb-3 leading-relaxed whitespace-pre-wrap">{{ post.desc }}</div>
-            <div v-if="post.requirement" class="text-sm text-pink-500 mb-3 bg-pink-50 p-2 rounded-lg">
-                <span class="font-bold">✨ 扩列要求：</span>{{ post.requirement }}
-            </div>
-
-            <!-- 图片展示 (1-3张) -->
-            <div v-if="post.images && post.images.length" class="grid gap-1 mb-3 rounded-lg overflow-hidden"
-                 :class="'img-grid-' + (post.images.length > 3 ? 3 : post.images.length)">
-                <div v-for="(img, idx) in post.images" :key="idx" 
-                     class="aspect-square bg-slate-100 cursor-pointer overflow-hidden"
-                     @click="previewImage(img)">
-                    <img :src="img" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500">
-                </div>
-            </div>
-
-            <!-- 底部按钮 -->
-            <div class="flex items-center justify-between pt-3 border-t border-slate-50">
-                <button @click="toggleComments(post)" class="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
-                    <i class="ri-chat-3-line"></i> {{ post.commentsCount || 0 }}
-                </button>
-                <button @click="likePost(post)" class="flex items-center gap-1 text-sm transition-colors" 
-                        :class="post.likedLocal ? 'text-pink-500' : 'text-slate-400'">
-                    <i :class="post.likedLocal ? 'ri-heart-fill' : 'ri-heart-line'"></i> {{ post.likes + (post.likedLocal ? 1 : 0) }}
-                </button>
-            </div>
-
-            <!-- 评论区 (展开时显示) -->
-            <div v-if="post.showComments" class="mt-4 pt-4 border-t border-dashed border-slate-200 bg-slate-50 -mx-4 px-4 pb-2 animate-in fade-in slide-in-from-top-2">
-                <div v-if="post.loadingComments" class="text-center text-xs text-slate-400 py-2">加载评论中...</div>
-                <div v-else class="space-y-3 mb-4">
-                    <div v-if="!post.comments || post.comments.length === 0" class="text-center text-xs text-slate-300 py-2">暂无评论，快来抢沙发</div>
-                    <div v-for="cmt in post.comments" :key="cmt.id" class="flex gap-2 text-xs">
-                        <span class="font-bold text-slate-600 whitespace-nowrap">{{ cmt.nickname }}:</span>
-                        <span class="text-slate-700 break-all">{{ cmt.content }}</span>
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <input v-model="post.newComment" placeholder="回点什么..." class="flex-1 bg-white border border-slate-200 rounded-full px-3 py-1.5 text-xs focus:outline-none focus:border-pink-300">
-                    <button @click="submitComment(post)" class="bg-slate-800 text-white text-xs px-3 py-1 rounded-full font-bold">发送</button>
-                </div>
-            </div>
+    <main class="p-4 space-y-5">
+        <div v-if="loading" class="text-center py-20">
+            <div class="inline-block animate-bounce text-3xl mb-2">🍡</div>
+            <p class="text-sm text-slate-400 font-medium">正在加载好朋友...</p>
         </div>
+        
+        <transition-group name="slide-up">
+            <div v-for="post in filteredPosts" :key="post.id" class="glass-card rounded-2xl p-5 transition-all hover:translate-y-[-2px]">
+                <!-- 头部 -->
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex gap-3">
+                        <div class="w-11 h-11 rounded-full bg-slate-100 p-0.5 shadow-sm">
+                            <img :src="post.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed='+post.username" class="w-full h-full rounded-full object-cover">
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-800">{{ post.nickname }}</span>
+                                <span class="game-tag bg-pink-50 text-pink-500 border-pink-100">{{ post.game }}</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                                <i class="ri-time-line"></i> {{ post.timeStr }}
+                            </p>
+                        </div>
+                    </div>
+                    <!-- ★ 管理员删除按钮 -->
+                    <button v-if="user && user.isAdmin" @click="deletePost(post)" class="text-xs bg-red-50 text-red-500 px-2 py-1 rounded hover:bg-red-100 font-bold transition-colors">
+                        删除
+                    </button>
+                </div>
+
+                <!-- 文案 -->
+                <div class="text-[15px] text-slate-700 mb-3 leading-relaxed tracking-wide whitespace-pre-wrap">{{ post.desc }}</div>
+                
+                <!-- 要求 -->
+                <div v-if="post.requirement" class="mb-4 bg-gradient-to-r from-pink-50/80 to-purple-50/80 p-3 rounded-xl border border-pink-100/50">
+                    <p class="text-xs font-bold text-pink-500 mb-1"><i class="ri-magic-line"></i> 寻找队友</p>
+                    <p class="text-xs text-slate-600 leading-relaxed">{{ post.requirement }}</p>
+                </div>
+
+                <!-- 图片墙 (画质提升) -->
+                <div v-if="post.images && post.images.length" class="grid gap-1.5 mb-4 rounded-xl overflow-hidden"
+                     :class="'img-grid-' + (post.images.length > 3 ? 3 : post.images.length)">
+                    <div v-for="(img, idx) in post.images" :key="idx" 
+                         class="aspect-square bg-slate-100 cursor-zoom-in overflow-hidden relative group"
+                         @click="previewImage(post.images, idx)">
+                        <img :src="img" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+                    </div>
+                </div>
+
+                <!-- 底部栏 -->
+                <div class="flex items-center justify-between pt-3 border-t border-slate-100/50">
+                    <button @click="toggleComments(post)" class="flex items-center gap-1.5 text-slate-400 hover:text-slate-600 transition-colors group">
+                        <div class="p-1.5 rounded-full group-hover:bg-slate-100 transition-colors">
+                            <i class="ri-chat-3-line text-lg"></i>
+                        </div>
+                        <span class="text-xs font-bold">{{ post.commentsCount || 0 }}</span>
+                    </button>
+                    
+                    <button @click="likePost(post)" class="flex items-center gap-1.5 transition-colors group">
+                        <div class="p-1.5 rounded-full group-hover:bg-pink-50 transition-colors" 
+                             :class="isLiked(post.id) ? 'text-pink-500' : 'text-slate-400'">
+                            <i :class="isLiked(post.id) ? 'ri-heart-fill' : 'ri-heart-line'" class="text-lg transition-transform active:scale-125"></i>
+                        </div>
+                        <span class="text-xs font-bold" :class="isLiked(post.id) ? 'text-pink-500' : 'text-slate-400'">
+                            {{ post.likes + (isLiked(post.id) && !post.serverLiked ? 1 : 0) }}
+                        </span>
+                    </button>
+                </div>
+
+                <!-- 评论区 -->
+                <div v-if="post.showComments" class="mt-4 pt-3 animate-fade-in bg-slate-50/50 rounded-xl p-3 border border-slate-100">
+                    <div v-if="post.loadingComments" class="text-center text-xs text-slate-400 py-2">加载中...</div>
+                    <div v-else>
+                        <div v-if="!post.comments || post.comments.length === 0" class="text-center text-xs text-slate-300 py-4">
+                            (｡•́︿•̀｡) 还没有人理ta...
+                        </div>
+                        <div class="space-y-2 mb-3 max-h-40 overflow-y-auto custom-scrollbar">
+                            <div v-for="cmt in post.comments" :key="cmt.id" class="flex gap-2 text-xs group">
+                                <span class="font-bold text-slate-600 whitespace-nowrap">{{ cmt.nickname }}:</span>
+                                <span class="text-slate-700 break-all leading-relaxed">{{ cmt.content }}</span>
+                            </div>
+                        </div>
+                        <div class="flex gap-2 items-center">
+                            <img :src="user?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg'" class="w-6 h-6 rounded-full border bg-white">
+                            <input v-model="post.newComment" 
+                                   placeholder="礼貌扩列，从一句你好开始..." 
+                                   class="flex-1 bg-white border-none rounded-full px-4 py-2 text-xs shadow-sm focus:ring-2 focus:ring-pink-200 outline-none transition-all">
+                            <button @click="submitComment(post)" class="text-pink-500 font-bold text-xs px-2">发送</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </transition-group>
     </main>
 
-    <!-- 悬浮发布按钮 -->
-    <button @click="checkAuthAndPost" class="fixed bottom-6 right-6 bg-gradient-to-r from-pink-500 to-purple-500 text-white w-12 h-12 rounded-full shadow-lg shadow-pink-200 flex items-center justify-center text-2xl active:scale-90 transition-transform z-30">
-        <i class="ri-add-line"></i>
-    </button>
+    <!-- 悬浮发布按钮 (适配 iPhone 底部安全区) -->
+    <div class="fixed bottom-6 right-6 z-30 bottom-safe-margin">
+        <button @click="checkAuthAndPost" class="bg-slate-900 text-white w-14 h-14 rounded-full shadow-xl shadow-slate-300 flex items-center justify-center text-2xl active:scale-90 transition-transform hover:rotate-90 hover:bg-black">
+            <i class="ri-add-line"></i>
+        </button>
+    </div>
 
-    <!-- 登录/注册弹窗 -->
-    <div v-if="showAuthModal" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
-            <div class="flex text-sm font-bold border-b">
-                <button @click="authMode='login'" class="flex-1 py-3 transition-colors" :class="authMode==='login'?'text-pink-500 border-b-2 border-pink-500':'text-slate-400'">登录</button>
-                <button @click="authMode='register'" class="flex-1 py-3 transition-colors" :class="authMode==='register'?'text-pink-500 border-b-2 border-pink-500':'text-slate-400'">注册新账号</button>
+    <!-- 认证弹窗 -->
+    <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/30 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white w-full max-w-xs rounded-3xl shadow-2xl overflow-hidden transform transition-all scale-100">
+            <div class="flex text-sm font-bold bg-slate-50 p-1 m-4 rounded-xl relative">
+                <div class="absolute top-1 bottom-1 bg-white rounded-lg shadow-sm transition-all duration-300 w-1/2" :style="{left: authMode==='login'?'4px':'50%'}"></div>
+                <button @click="authMode='login'" class="flex-1 py-2 relative z-10 transition-colors" :class="authMode==='login'?'text-slate-800':'text-slate-400'">登录</button>
+                <button @click="authMode='register'" class="flex-1 py-2 relative z-10 transition-colors" :class="authMode==='register'?'text-slate-800':'text-slate-400'">注册</button>
             </div>
-            <div class="p-6 space-y-4">
-                <div v-if="authMode==='register'" class="flex justify-center mb-2">
-                     <div class="w-16 h-16 rounded-full bg-slate-50 border border-dashed border-slate-300 flex items-center justify-center relative overflow-hidden cursor-pointer group" @click="$refs.avatarInput.click()">
+            
+            <div class="px-6 pb-6 space-y-4">
+                <div v-if="authMode==='register'" class="flex justify-center">
+                     <div class="w-20 h-20 rounded-full bg-slate-50 border-2 border-dashed border-pink-200 flex flex-col items-center justify-center text-pink-300 cursor-pointer relative overflow-hidden group hover:border-pink-400 transition-colors" @click="$refs.avatarInput.click()">
                         <img v-if="authForm.avatar" :src="authForm.avatar" class="w-full h-full object-cover">
-                        <i v-else class="ri-camera-line text-slate-300 text-xl"></i>
-                        <!-- 显示大小 -->
-                        <div v-if="authForm.avatar" class="absolute bottom-0 w-full bg-black/50 text-white text-[8px] text-center py-0.5">
-                            {{ getSizeKB(authForm.avatar) }}
+                        <div v-else class="flex flex-col items-center">
+                            <i class="ri-camera-fill text-2xl"></i>
+                            <span class="text-[10px] mt-1">传头像</span>
                         </div>
                         <input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarUpload">
                      </div>
                 </div>
-                <input v-model="authForm.username" placeholder="用户名 (账号)" class="w-full bg-slate-50 border-none rounded-lg px-4 py-2 text-sm">
-                <input v-model="authForm.password" type="password" placeholder="密码" class="w-full bg-slate-50 border-none rounded-lg px-4 py-2 text-sm">
-                <input v-if="authMode==='register'" v-model="authForm.nickname" placeholder="你的昵称" class="w-full bg-slate-50 border-none rounded-lg px-4 py-2 text-sm">
                 
-                <button @click="handleAuth" :disabled="isAuthing" class="w-full bg-pink-500 text-white font-bold py-2 rounded-lg shadow-md disabled:opacity-50">
-                    {{ isAuthing ? '处理中...' : (authMode==='login'?'登 录':'注 册') }}
+                <div class="space-y-3">
+                    <div class="bg-slate-50 rounded-xl px-4 py-2 border border-slate-100 focus-within:border-pink-300 focus-within:bg-white transition-colors">
+                        <input v-model="authForm.username" placeholder="用户名 / 账号" class="w-full bg-transparent text-sm outline-none placeholder-slate-400">
+                    </div>
+                    <div class="bg-slate-50 rounded-xl px-4 py-2 border border-slate-100 focus-within:border-pink-300 focus-within:bg-white transition-colors">
+                        <input v-model="authForm.password" type="password" placeholder="设置密码" class="w-full bg-transparent text-sm outline-none placeholder-slate-400">
+                    </div>
+                    <div v-if="authMode==='register'" class="bg-slate-50 rounded-xl px-4 py-2 border border-slate-100 focus-within:border-pink-300 focus-within:bg-white transition-colors">
+                        <input v-model="authForm.nickname" placeholder="怎么称呼你 (昵称)" class="w-full bg-transparent text-sm outline-none placeholder-slate-400">
+                    </div>
+                </div>
+                
+                <button @click="handleAuth" :disabled="isAuthing" class="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-pink-200 active:scale-95 transition-transform disabled:opacity-70">
+                    {{ isAuthing ? '处理中...' : (authMode==='login'?'✨ 登 录':'🚀 注 册') }}
                 </button>
+                <p class="text-center text-xs text-slate-400 mt-2 cursor-pointer hover:text-pink-400" @click="showAuthModal=false">先逛逛，以后再说</p>
             </div>
-            <button @click="showAuthModal = false" class="w-full py-3 text-slate-400 text-xs border-t">暂不登录，随便看看</button>
         </div>
     </div>
 
-    <!-- 发布弹窗 -->
-    <div v-if="showPostModal" class="fixed inset-0 z-50 bg-white flex flex-col">
-        <div class="flex items-center justify-between p-4 border-b border-slate-100">
-            <button @click="showPostModal = false" class="text-slate-500">取消</button>
-            <h3 class="font-bold text-slate-800">发布扩列</h3>
-            <button @click="submitPost" :disabled="submitting" class="bg-pink-500 text-white px-4 py-1 rounded-full text-sm font-bold disabled:opacity-50">
-                {{ submitting ? '发布中' : '发布' }}
+    <!-- 发布弹窗 (全屏模式) -->
+    <div v-if="showPostModal" class="fixed inset-0 z-50 bg-white flex flex-col animate-fade-in">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <button @click="showPostModal = false" class="text-slate-500 px-2 py-1 rounded-full hover:bg-slate-100">取消</button>
+            <h3 class="font-bold text-slate-800 text-lg">✨ 发布动态</h3>
+            <button @click="submitPost" :disabled="submitting" class="bg-slate-900 text-white px-5 py-1.5 rounded-full text-sm font-bold disabled:opacity-50 transition-colors">
+                {{ submitting ? '发送中' : '发布' }}
             </button>
         </div>
-        <div class="p-4 flex-1 overflow-y-auto">
-            <textarea v-model="postForm.content" class="w-full h-32 text-sm resize-none focus:outline-none placeholder-slate-300" placeholder="介绍一下你自己，声音、性格、擅长位置..."></textarea>
+        
+        <div class="flex-1 overflow-y-auto p-5 pb-20">
+            <textarea v-model="postForm.content" class="w-full h-32 text-[15px] resize-none focus:outline-none placeholder-slate-300 leading-relaxed" placeholder="分享你的游戏日常，寻找你的固玩CP..."></textarea>
             
-            <!-- 图片上传区 (最多3张) -->
-            <div class="flex gap-2 mb-4">
-                <div v-for="(img, idx) in postForm.images" :key="idx" class="w-20 h-20 rounded-lg bg-slate-100 relative overflow-hidden group">
+            <!-- 图片列表 -->
+            <div class="flex flex-wrap gap-3 mb-6">
+                <div v-for="(img, idx) in postForm.images" :key="idx" class="w-24 h-24 rounded-xl bg-slate-100 relative overflow-hidden group border border-slate-200">
                     <img :src="img" class="w-full h-full object-cover">
-                    <button @click="removeImage(idx)" class="absolute top-0 right-0 bg-black/50 text-white w-5 h-5 flex items-center justify-center rounded-bl-lg text-xs">&times;</button>
-                    <!-- 显示大小 -->
-                    <div class="absolute bottom-0 left-0 bg-black/60 text-white text-[9px] px-1 rounded-tr">
+                    <button @click="removeImage(idx)" class="absolute top-1 right-1 bg-black/50 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm backdrop-blur-sm">
+                        <i class="ri-close-line"></i>
+                    </button>
+                    <div class="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-[9px] text-center py-0.5 backdrop-blur-sm">
                         {{ getSizeKB(img) }}
                     </div>
                 </div>
-                <div v-if="postForm.images.length < 3" @click="$refs.postImgInput.click()" class="w-20 h-20 rounded-lg border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 cursor-pointer active:bg-slate-50">
-                    <i class="ri-image-add-line text-xl"></i>
+                
+                <div v-if="postForm.images.length < 3" @click="$refs.postImgInput.click()" class="w-24 h-24 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 cursor-pointer active:bg-slate-50 hover:border-pink-300 hover:text-pink-300 transition-colors">
+                    <i class="ri-image-add-line text-2xl mb-1"></i>
                     <span class="text-[10px]">添加图片</span>
                 </div>
                 <input type="file" ref="postImgInput" hidden accept="image/*" @change="handlePostImageUpload">
             </div>
 
-            <div class="space-y-4">
-                <div>
-                    <label class="text-xs font-bold text-slate-400 block mb-1">玩什么游戏</label>
-                    <select v-model="postForm.game" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-sm border-none outline-none">
-                        <option v-for="g in games.slice(1)" :key="g">{{ g }}</option>
-                    </select>
+            <div class="space-y-5">
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <label class="text-xs font-bold text-slate-400 block mb-2 flex items-center gap-1"><i class="ri-gamepad-line"></i> 关联游戏</label>
+                    <div class="flex flex-wrap gap-2">
+                        <span v-for="g in games.slice(1)" :key="g" 
+                              @click="postForm.game = g"
+                              class="text-xs px-3 py-1.5 rounded-lg border transition-all cursor-pointer"
+                              :class="postForm.game === g ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200'">
+                            {{ g }}
+                        </span>
+                    </div>
                 </div>
-                <div>
-                    <label class="text-xs font-bold text-slate-400 block mb-1">对CP/队友的要求</label>
-                    <input v-model="postForm.requirement" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-sm border-none outline-none" placeholder="比如：不压力，心态好...">
+                
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <label class="text-xs font-bold text-slate-400 block mb-2 flex items-center gap-1"><i class="ri-user-heart-line"></i> 扩列要求</label>
+                    <input v-model="postForm.requirement" class="w-full bg-transparent text-sm outline-none placeholder-slate-300" placeholder="比如：野王dd，不压力，心态好...">
                 </div>
             </div>
+            
+            <!-- 底部提示 -->
+            <p class="text-center text-xs text-slate-300 mt-8">请文明发言，拒绝不良信息</p>
         </div>
     </div>
 
-    <!-- 图片预览大图 -->
-    <div v-if="previewImg" @click="previewImg=null" class="fixed inset-0 z-[60] bg-black flex items-center justify-center p-2">
-        <img :src="previewImg" class="max-w-full max-h-full object-contain">
+    <!-- 图片大图预览 (点击背景关闭) -->
+    <div v-if="preview.show" class="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center backdrop-blur-sm" @click="preview.show = false">
+        <img :src="preview.list[preview.idx]" class="max-w-full max-h-screen object-contain transition-opacity duration-300" @click.stop>
+        
+        <!-- 左右切换按钮 -->
+        <div v-if="preview.list.length > 1" class="absolute bottom-10 flex gap-4" @click.stop>
+             <button v-for="(img, idx) in preview.list" :key="idx" 
+                     @click="preview.idx = idx"
+                     class="w-2 h-2 rounded-full transition-all"
+                     :class="preview.idx === idx ? 'bg-white w-4' : 'bg-white/30'">
+             </button>
+        </div>
     </div>
 
 </div>
@@ -209,44 +311,45 @@
             const user = ref(null);
             const posts = ref([]);
             const loading = ref(true);
-            
+            const likedPostIds = ref(new Set()); // ★ 修复点赞 Bug：本地存储点过的ID
+
             // 状态
             const showAuthModal = ref(false);
-            const authMode = ref('login'); // login | register
+            const authMode = ref('login'); 
             const showPostModal = ref(false);
             const submitting = ref(false);
             const isAuthing = ref(false);
-            const previewImg = ref(null);
+            const preview = ref({ show: false, list: [], idx: 0 });
 
-            // 修改点：加入了“光遇”
             const games = ['全部', '王者荣耀', '原神', '光遇', '英雄联盟', '和平精英', '蛋仔派对', '无畏契约', '其他'];
             const filterGame = ref('全部');
 
-            // 表单
             const authForm = ref({ username: '', password: '', nickname: '', avatar: '' });
             const postForm = ref({ content: '', game: '王者荣耀', requirement: '', images: [] });
 
             // 初始化
             onMounted(() => {
-                const saved = localStorage.getItem('cp_user');
-                if (saved) user.value = JSON.parse(saved);
+                // 恢复用户
+                const savedUser = localStorage.getItem('cp_user');
+                if (savedUser) user.value = JSON.parse(savedUser);
+                
+                // ★ 恢复点赞状态
+                const savedLikes = localStorage.getItem('cp_liked_ids');
+                if (savedLikes) likedPostIds.value = new Set(JSON.parse(savedLikes));
+
                 fetchPosts();
             });
 
             const refresh = () => fetchPosts();
             const logout = () => { user.value = null; localStorage.removeItem('cp_user'); };
 
-            // --- 核心工具：获取 Base64 大小 ---
             const getSizeKB = (base64Str) => {
                 if (!base64Str) return '';
-                // Base64 长度 * 0.75 大约等于 字节数
-                const bytes = base64Str.length * 0.75;
-                const kb = bytes / 1024;
-                return kb.toFixed(1) + ' KB';
+                return (base64Str.length * 0.75 / 1024).toFixed(1) + ' KB';
             };
 
-            // --- 图片压缩逻辑 (核心) ---
-            const compressImage = (file, maxWidth = 800, quality = 0.6) => {
+            // --- ★ 画质升级 & 智能压缩 ---
+            const compressImage = (file, maxWidth = 1280, quality = 0.8) => {
                 return new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onload = (e) => {
@@ -255,25 +358,17 @@
                             const canvas = document.createElement('canvas');
                             let w = img.width;
                             let h = img.height;
-                            
-                            // 保持宽高比缩放
+                            // 保持宽高比
                             if (w > maxWidth) { h *= maxWidth / w; w = maxWidth; }
-                            if (h > maxWidth) { w *= maxWidth / h; h = maxWidth; } // 高度也限制一下
+                            if (h > maxWidth) { w *= maxWidth / h; h = maxWidth; }
                             
                             canvas.width = w;
                             canvas.height = h;
                             const ctx = canvas.getContext('2d');
                             ctx.drawImage(img, 0, 0, w, h);
                             
-                            // 输出 compressed base64
-                            const result = canvas.toDataURL('image/jpeg', quality);
-                            
-                            // 调试信息
-                            const originSize = (file.size / 1024).toFixed(1) + 'KB';
-                            const newSize = (result.length * 0.75 / 1024).toFixed(1) + 'KB';
-                            console.log(`图片压缩: [${originSize}] -> [${newSize}]`);
-                            
-                            resolve(result);
+                            // 输出
+                            resolve(canvas.toDataURL('image/jpeg', quality));
                         };
                         img.src = e.target.result;
                     };
@@ -281,16 +376,19 @@
                 });
             };
 
-            // --- 鉴权逻辑 ---
+            // --- 鉴权 & 管理员逻辑 ---
             const handleAvatarUpload = async (e) => {
-                if(e.target.files[0]) {
-                    // 头像还是保持小一点，200px够用了
-                    authForm.value.avatar = await compressImage(e.target.files[0], 200, 0.6);
-                }
+                if(e.target.files[0]) authForm.value.avatar = await compressImage(e.target.files[0], 200, 0.7);
             };
             
             const handleAuth = async () => {
                 if (!authForm.value.username || !authForm.value.password) return alert('请输入账号密码');
+                
+                // 简单的前端提示，实际上后端也会判断
+                if (authMode.value === 'register' && authForm.value.username === 'admin') {
+                    if(!confirm("你要注册管理员账号(admin)吗？此账号拥有删除帖子的权限。")) return;
+                }
+
                 isAuthing.value = true;
                 try {
                     const res = await fetch(`${API}?action=${authMode.value}`, {
@@ -333,17 +431,8 @@
                 if (!file) return;
                 if (postForm.value.images.length >= 3) return alert('最多3张哦');
                 
-                // 修改点：画质升级
-                // 宽 1024px (原800), 质量 0.8 (原0.6)
-                // 这样图片会大一些，大概 150KB-250KB 一张
-                const base64 = await compressImage(file, 1024, 0.8);
-                
-                // 安全检查：放宽到 450KB 警告
-                const sizeKB = base64.length * 0.75 / 1024;
-                if (sizeKB > 450) {
-                    alert('这张图压缩后还是有点大(' + sizeKB.toFixed(0) + 'KB)，建议换张简单的，或者截个图再发~');
-                }
-                
+                // ★ 画质提升：最大宽1280，质量0.8
+                const base64 = await compressImage(file, 1280, 0.8);
                 postForm.value.images.push(base64);
                 e.target.value = ''; 
             };
@@ -353,19 +442,16 @@
             const submitPost = async () => {
                 if (!postForm.value.content) return alert('说点什么吧');
                 
-                // 计算总大小检查
+                // ★ 智能容量检测
                 const totalSize = postForm.value.images.reduce((acc, img) => acc + (img.length * 0.75), 0);
-                // Firestore 限制 1MB = 1024KB，我们留 74KB 给文字和其他字段
-                if (totalSize > 950 * 1024) { 
-                     return alert(`图片总大小(${ (totalSize/1024).toFixed(0) }KB) 超过数据库限制啦！请删掉一张，或者选更简单的图。`);
+                // Firestore 限制 1MB (1048576 bytes)，预留 100KB 给文字
+                if (totalSize > 900 * 1024) { 
+                     return alert(`图片太清晰啦 (总共 ${(totalSize/1024).toFixed(0)}KB)！已超过数据库限制，请删掉一张或换小图。`);
                 }
 
                 submitting.value = true;
                 try {
-                    const payload = {
-                        user: user.value,
-                        ...postForm.value
-                    };
+                    const payload = { user: user.value, ...postForm.value };
                     const res = await fetch(`${API}?action=create_post`, {
                         method: 'POST',
                         body: JSON.stringify(payload)
@@ -376,17 +462,42 @@
                         fetchPosts();
                     } else {
                         const err = await res.json();
-                        alert(err.error || '发布失败，可能总数据量太大');
+                        alert(err.error || '发布失败，图片可能太大了');
                     }
                 } catch (e) { alert('发布失败'); }
                 submitting.value = false;
             };
 
-            // --- 互动逻辑 ---
+            // --- ★ 管理员删除功能 ---
+            const deletePost = async (post) => {
+                if (!confirm('管理员操作：确定要删除这条扩列吗？')) return;
+                try {
+                    const res = await fetch(`${API}?action=delete_post`, {
+                        method: 'POST',
+                        body: JSON.stringify({ id: post.id, user: user.value })
+                    });
+                    if (res.ok) {
+                        // 从列表移除
+                        posts.value = posts.value.filter(p => p.id !== post.id);
+                    } else {
+                        alert('删除失败，权限不足？');
+                    }
+                } catch (e) { alert('网络错误'); }
+            };
+
+            // --- 互动逻辑 (点赞/评论) ---
+            const isLiked = (id) => likedPostIds.value.has(id);
+
             const likePost = async (post) => {
-                if(post.likedLocal) return;
-                post.likedLocal = true;
-                post.likes++;
+                if (isLiked(post.id)) return; // 避免重复点赞
+                
+                // 乐观更新
+                likedPostIds.value.add(post.id);
+                localStorage.setItem('cp_liked_ids', JSON.stringify([...likedPostIds.value]));
+                
+                // 标记这个赞还没同步到服务器(可选)
+                // UI上直接显示+1
+                
                 await fetch(`${API}?action=like`, { method: 'POST', body: JSON.stringify({ id: post.id }) });
             };
 
@@ -413,7 +524,6 @@
                     content: post.newComment
                 };
                 
-                // 乐观更新
                 if (!post.comments) post.comments = [];
                 post.comments.push(tempComment);
                 post.commentsCount = (post.commentsCount || 0) + 1;
@@ -423,15 +533,13 @@
 
                 await fetch(`${API}?action=add_comment`, {
                     method: 'POST',
-                    body: JSON.stringify({
-                        postId: post.id,
-                        user: user.value,
-                        content: txt
-                    })
+                    body: JSON.stringify({ postId: post.id, user: user.value, content: txt })
                 });
             };
             
-            const previewImage = (src) => previewImg.value = src;
+            const previewImage = (list, idx) => {
+                preview.value = { show: true, list, idx };
+            };
 
             const filteredPosts = computed(() => {
                 if (filterGame.value === '全部') return posts.value;
@@ -441,10 +549,11 @@
             return {
                 user, posts, loading, games, filterGame, filteredPosts,
                 showAuthModal, authMode, authForm, isAuthing,
-                showPostModal, postForm, submitting, previewImg,
+                showPostModal, postForm, submitting, preview,
                 refresh, logout, handleAuth, handleAvatarUpload,
                 checkAuthAndPost, handlePostImageUpload, removeImage, submitPost,
-                likePost, toggleComments, submitComment, previewImage, getSizeKB
+                likePost, isLiked, toggleComments, submitComment, previewImage, getSizeKB,
+                deletePost // 导出删除方法
             };
         }
     }).mount('#app');
