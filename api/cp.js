@@ -1,6 +1,6 @@
 import admin from 'firebase-admin';
 
-// --- 初始化逻辑 (复用你原有的) ---
+// --- 初始化逻辑 ---
 if (!admin.apps.length) {
     if (process.env.FIREBASE_CREDENTIALS) {
         try {
@@ -18,6 +18,11 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
+// 简单的密码哈希（实际生产建议用 bcrypt，但为了减少依赖包体积，这里用简单的字符串处理）
+const hashPassword = (pwd) => {
+    return Buffer.from(pwd + "cpdd_salt").toString('base64');
+};
+
 export default async function handler(req, res) {
     // CORS 设置
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -30,11 +35,59 @@ export default async function handler(req, res) {
     }
 
     try {
-        const collection = db.collection('cp_posts');
+        const { action } = req.query;
+        const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
 
-        // --- GET: 获取扩列列表 ---
-        if (req.method === 'GET') {
-            const snapshot = await collection
+        // ==========================================
+        // 1. 鉴权模块 (注册/登录)
+        // ==========================================
+        
+        if (action === 'register') {
+            const { username, password, nickname, avatar } = body;
+            if (!username || !password || !nickname) return res.status(400).json({ error: '信息不完整' });
+
+            // 检查用户名是否存在
+            const userRef = db.collection('cp_users').doc(username);
+            const userDoc = await userRef.get();
+            if (userDoc.exists) return res.status(400).json({ error: '用户名已存在' });
+
+            const userData = {
+                username,
+                password: hashPassword(password),
+                nickname,
+                avatar: avatar || '', // 头像Base64
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            };
+            
+            await userRef.set(userData);
+            // 返回用户信息（不含密码）
+            delete userData.password;
+            return res.json({ success: true, user: userData });
+        }
+
+        if (action === 'login') {
+            const { username, password } = body;
+            const userRef = db.collection('cp_users').doc(username);
+            const userDoc = await userRef.get();
+            
+            if (!userDoc.exists) return res.status(400).json({ error: '用户不存在' });
+            
+            const userData = userDoc.data();
+            if (userData.password !== hashPassword(password)) {
+                return res.status(400).json({ error: '密码错误' });
+            }
+
+            delete userData.password;
+            return res.json({ success: true, user: userData });
+        }
+
+        // ==========================================
+        // 2. 帖子模块
+        // ==========================================
+
+        if (req.method === 'GET' && !action) {
+            // 获取帖子列表
+            const snapshot = await db.collection('cp_posts')
                 .orderBy('timestamp', 'desc')
                 .limit(50)
                 .get();
@@ -42,70 +95,94 @@ export default async function handler(req, res) {
             const posts = [];
             snapshot.forEach(doc => {
                 const data = doc.data();
-                // 转换时间戳
+                // 转换时间
                 let timeStr = "刚刚";
                 if (data.timestamp && data.timestamp._seconds) {
                     const date = new Date(data.timestamp._seconds * 1000);
                     const now = new Date();
-                    // 简单的显示逻辑
                     if (now - date < 86400000) {
                         timeStr = date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
                     } else {
                         timeStr = date.toLocaleDateString('zh-CN', {month: '2-digit', day:'2-digit'});
                     }
                 }
+                posts.push({ id: doc.id, ...data, timeStr });
+            });
+            return res.json(posts);
+        }
 
-                posts.push({
-                    id: doc.id,
-                    ...data,
-                    timeStr
+        if (req.method === 'POST' && action === 'create_post') {
+            const { user, content, game, images, requirement } = body;
+            
+            if (!user || !user.username) return res.status(401).json({ error: '请先登录' });
+            if (!content) return res.status(400).json({ error: '内容不能为空' });
+
+            // 写入 Firestore
+            await db.collection('cp_posts').add({
+                nickname: user.nickname,
+                username: user.username, // 关联作者
+                avatar: user.avatar || '',
+                game: game || '其他',
+                desc: content.slice(0, 500),
+                requirement: requirement || '',
+                images: images || [], // 存图片数组 [base64, base64...]
+                likes: 0,
+                commentsCount: 0,
+                timestamp: admin.firestore.FieldValue.serverTimestamp()
+            });
+            return res.json({ success: true });
+        }
+
+        // ==========================================
+        // 3. 互动模块 (点赞/评论)
+        // ==========================================
+
+        if (req.method === 'POST' && action === 'like') {
+            const { id } = body;
+            await db.collection('cp_posts').doc(id).update({
+                likes: admin.firestore.FieldValue.increment(1)
+            });
+            return res.json({ success: true });
+        }
+
+        if (req.method === 'GET' && action === 'get_comments') {
+            const { postId } = req.query;
+            if (!postId) return res.status(400).json({ error: 'Missing postId' });
+
+            const snapshot = await db.collection('cp_posts').doc(postId).collection('comments')
+                .orderBy('timestamp', 'asc')
+                .get();
+            
+            const comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            return res.json(comments);
+        }
+
+        if (req.method === 'POST' && action === 'add_comment') {
+            const { postId, user, content } = body;
+            if (!user) return res.status(401).json({ error: '请先登录' });
+
+            const postRef = db.collection('cp_posts').doc(postId);
+            
+            // 事务：添加评论并增加评论计数
+            await db.runTransaction(async (t) => {
+                const commentRef = postRef.collection('comments').doc();
+                t.set(commentRef, {
+                    nickname: user.nickname,
+                    username: user.username,
+                    avatar: user.avatar,
+                    content: content,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                });
+                t.update(postRef, {
+                    commentsCount: admin.firestore.FieldValue.increment(1)
                 });
             });
             
-            res.status(200).json(posts);
-        } 
-        // --- POST: 发布新扩列 ---
-        else if (req.method === 'POST') {
-            const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-            const { nickname, gender, game, desc, requirement, imageBase64 } = body;
-
-            // 简单校验
-            if (!nickname || !desc) {
-                return res.status(400).json({ error: '昵称和介绍不能为空' });
-            }
-
-            // 存入 Firestore
-            // 注意：imageBase64 必须在前端压缩过，否则可能超过 Firestore 1MB 限制
-            await collection.add({
-                nickname: nickname.slice(0, 20),
-                gender,
-                game,
-                desc: desc.slice(0, 200),
-                requirement: requirement ? requirement.slice(0, 200) : '',
-                imageBase64: imageBase64 || '', // 存储 Base64 图片字符串
-                likes: 0,
-                timestamp: admin.firestore.FieldValue.serverTimestamp()
-            });
-
-            res.status(200).json({ success: true });
+            return res.json({ success: true });
         }
-        // --- PUT: 点赞 ---
-        else if (req.method === 'PUT') {
-            const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-            const { id } = body;
-            
-            if (!id) return res.status(400).json({ error: 'ID is required' });
 
-            const docRef = collection.doc(id);
-            await docRef.update({
-                likes: admin.firestore.FieldValue.increment(1)
-            });
+        return res.status(404).json({ error: 'API action not found' });
 
-            res.status(200).json({ success: true });
-        }
-        else {
-            res.status(405).json({ error: 'Method not allowed' });
-        }
     } catch (error) {
         console.error("API Error:", error);
         res.status(500).json({ error: 'Internal Server Error', details: error.message });
