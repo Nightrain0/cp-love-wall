@@ -4,52 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>CPDD 扩列小站</title>
-    <!-- 使用国内 CDN 加速 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.staticfile.org/vue/3.3.4/vue.global.prod.min.js"></script>
     <link href="https://cdn.staticfile.org/remixicon/3.5.0/remixicon.css" rel="stylesheet">
-    
     <style>
-        /* --- 基础样式 --- */
-        body { 
-            background-color: #f8fafc;
-            background-image: linear-gradient(to bottom right, #fff1f2, #f8fafc, #f0f9ff);
-            background-attachment: fixed;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            -webkit-tap-highlight-color: transparent;
-            color: #334155;
-        }
+        body { background-color: #f8fafc; background-image: linear-gradient(to bottom right, #fff1f2, #f8fafc, #f0f9ff); background-attachment: fixed; font-family: sans-serif; -webkit-tap-highlight-color: transparent; color: #334155; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-        
-        /* v-cloak: Vue加载完成前隐藏未编译的变量 */
         [v-cloak] { display: none !important; }
-
-        /* --- 动画 --- */
         .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
         .list-enter-active, .list-leave-active { transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1); }
         .list-enter-from, .list-leave-to { opacity: 0; transform: translateY(30px); }
         .list-move { transition: transform 0.5s ease; }
-
-        /* --- 卡片 --- */
-        .app-card {
-            background: #ffffff;
-            border-radius: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-            transition: all 0.3s ease;
-            border: 1px solid #f1f5f9;
-            overflow: hidden;
-            margin-bottom: 20px; /* 瀑布流间距 */
-            break-inside: avoid; /* 防止被截断 */
-        }
+        .app-card { background: #fff; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transition: all 0.3s ease; border: 1px solid #f1f5f9; overflow: hidden; margin-bottom: 20px; break-inside: avoid; }
         .app-card:hover { transform: translateY(-3px); box-shadow: 0 15px 30px -5px rgba(244, 114, 182, 0.15); }
-
-        /* --- 标签 --- */
         .tag { font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 100px; transition: all 0.2s; white-space: nowrap; }
         .tag-active { background: #1e293b; color: #fff; transform: scale(1.05); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
         .tag-inactive { background: #fff; color: #64748b; border: 1px solid #e2e8f0; }
-
-        /* --- 图片九宫格 --- */
         .img-grid { display: grid; gap: 4px; border-radius: 12px; overflow: hidden; margin-top: 12px; }
         .img-grid-1 { grid-template-columns: 1fr; }
         .img-grid-2 { grid-template-columns: 1fr 1fr; }
@@ -57,14 +28,12 @@
         .img-item { aspect-ratio: 1/1; width: 100%; object-fit: cover; cursor: zoom-in; transition: filter 0.2s; }
         .img-item:hover { filter: brightness(0.9); }
         .img-grid-1 .img-item { aspect-ratio: 16/9; max-height: 260px; }
-
         .pb-safe { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
         .fab-safe { bottom: calc(32px + env(safe-area-inset-bottom)); }
     </style>
 </head>
 <body>
 
-<!-- 纯 CSS Loading (在 Vue 加载前显示) -->
 <div id="static-loading" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f8fafc;z-index:9999;transition:opacity 0.5s;">
     <div style="font-size:40px;animation:bounce 1s infinite;">🍡</div>
     <p style="color:#94a3b8;font-size:12px;margin-top:10px;font-weight:bold;">资源加载中...</p>
@@ -73,7 +42,6 @@
 
 <div id="app" v-cloak class="min-h-screen">
     
-    <!-- 导航栏 -->
     <header class="fixed top-0 inset-x-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-100 h-16 flex items-center justify-between px-4 transition-shadow" :class="{'shadow-sm': scrollY > 10}">
         <div class="flex items-center gap-2 cursor-pointer" @click="refresh">
             <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center text-white shadow-lg shadow-pink-200">
@@ -81,7 +49,6 @@
             </div>
             <h1 class="text-lg font-extrabold text-slate-800 tracking-tight">CPDD<span class="text-rose-500">.</span></h1>
         </div>
-
         <div v-if="user" class="flex items-center gap-3">
             <div class="text-right hidden sm:block">
                 <div class="text-xs font-bold text-slate-700">{{ user.nickname }}</div>
@@ -92,55 +59,40 @@
                 <i class="ri-logout-box-r-line"></i>
             </button>
         </div>
-        <button v-else @click="showAuthModal = true" class="bg-slate-900 text-white text-xs font-bold px-5 py-2 rounded-full shadow-lg">
-            登录/注册
-        </button>
+        <button v-else @click="showAuthModal = true" class="bg-slate-900 text-white text-xs font-bold px-5 py-2 rounded-full shadow-lg">登录/注册</button>
     </header>
     <div class="h-16"></div>
 
-    <!-- 筛选 -->
     <div class="sticky top-16 z-30 bg-white/90 backdrop-blur-md border-b border-slate-50 py-3 px-4 overflow-x-auto hide-scrollbar">
         <div class="flex gap-2 min-w-max">
-            <button v-for="g in games" :key="g" @click="changeFilter(g)"
-                class="tag" :class="filterGame === g ? 'tag-active' : 'tag-inactive'">{{ g }}</button>
+            <button v-for="g in games" :key="g" @click="changeFilter(g)" class="tag" :class="filterGame === g ? 'tag-active' : 'tag-inactive'">{{ g }}</button>
         </div>
     </div>
 
-    <!-- 公告 -->
     <div v-if="notice" class="max-w-5xl mx-auto px-4 mt-4">
         <div class="bg-orange-50 border border-orange-100 rounded-xl p-3 flex gap-2 text-xs text-orange-700">
             <i class="ri-notification-4-fill"></i> {{ notice }}
         </div>
     </div>
 
-    <!-- 内容区 -->
     <main class="max-w-5xl mx-auto px-4 pt-6 pb-safe">
-        
-        <!-- 错误提示 -->
         <div v-if="error" class="text-center py-20">
              <div class="text-4xl mb-2">⚠️</div>
              <p class="text-sm text-slate-500 mb-4">{{ error }}</p>
              <button @click="refresh" class="bg-rose-500 text-white px-6 py-2 rounded-full text-sm font-bold">重试</button>
         </div>
-
-        <!-- Loading -->
         <div v-else-if="loading" class="text-center py-32 text-rose-300">
             <i class="ri-loader-4-line text-3xl animate-spin"></i>
             <p class="text-xs font-bold mt-2">加载中...</p>
         </div>
-
-        <!-- 空状态 -->
         <div v-else-if="!posts.length" class="text-center py-32 text-slate-400">
             <div class="text-5xl mb-2 grayscale opacity-50">🏔️</div>
             <p class="text-sm font-bold">暂无内容</p>
             <button @click="checkAuthAndPost" class="mt-4 text-rose-500 text-xs font-bold hover:underline">去发布</button>
         </div>
-
-        <!-- 瀑布流列表 -->
         <div v-else class="flex gap-4 items-start">
             <div v-for="(col, i) in columns" :key="i" class="flex-1 flex flex-col gap-4 min-w-0">
-                <div v-for="post in col" :key="post.id" class="app-card p-4">
-                    <!-- 头部 -->
+                <div v-for="post in col" :key="post.id" class="app-card p-4 group relative">
                     <div class="flex justify-between items-start mb-3">
                         <div class="flex items-center gap-2">
                             <img :src="post.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${post.username}`" class="w-9 h-9 rounded-full bg-slate-100 object-cover">
@@ -152,25 +104,18 @@
                                 <div class="text-[10px] text-slate-400">{{ post.timeStr }}</div>
                             </div>
                         </div>
-                        <button v-if="user && user.isAdmin" @click="deletePost(post.id)" class="text-slate-300 hover:text-red-500">
+                        <!-- 修改点：删除按钮权限放宽 (管理员 或 作者本人) -->
+                        <button v-if="user && (user.isAdmin || user.username === post.username)" @click="deletePost(post.id)" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">
                             <i class="ri-delete-bin-line"></i>
                         </button>
                     </div>
-
-                    <!-- 内容 -->
                     <div class="text-sm text-slate-700 mb-3 whitespace-pre-wrap break-words">{{ post.desc }}</div>
-                    
-                    <!-- 需求 -->
                     <div v-if="post.requirement" class="bg-rose-50 rounded-lg p-2 mb-3 text-xs text-slate-600 border border-rose-100">
                         <span class="font-bold text-rose-500">需求：</span>{{ post.requirement }}
                     </div>
-
-                    <!-- 图片 -->
                     <div v-if="post.images && post.images.length" class="img-grid" :class="'img-grid-' + Math.min(post.images.length, 3)">
                         <img v-for="(img, idx) in post.images" :key="idx" :src="img" class="img-item" @click="previewImage(post.images, idx)">
                     </div>
-
-                    <!-- 底部 -->
                     <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
                         <button @click="toggleComments(post)" class="flex items-center gap-1 text-slate-400 hover:text-slate-600 text-xs font-bold">
                             <i class="ri-chat-1-line text-base"></i> {{ post.commentsCount || 0 }}
@@ -179,17 +124,16 @@
                             <i :class="isLiked(post) ? 'ri-heart-3-fill' : 'ri-heart-3-line'" class="text-base"></i> {{ post.likes || 0 }}
                         </button>
                     </div>
-
-                    <!-- 评论 -->
                     <div v-if="post.showComments" class="mt-3 pt-3 border-t border-dashed border-slate-100">
                         <div v-if="post.loadingComments" class="text-center text-xs text-slate-400">加载中...</div>
                         <div v-else>
                             <div v-if="!post.commentList?.length" class="text-center text-xs text-slate-300 py-2">暂无评论</div>
-                            <div class="space-y-2 mb-2 max-h-40 overflow-y-auto">
-                                <div v-for="cmt in post.commentList" :key="cmt.id" class="flex gap-2 text-xs">
+                            <div class="space-y-2 mb-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                <div v-for="cmt in post.commentList" :key="cmt.id" class="flex gap-2 text-xs group/cmt">
                                     <span class="font-bold text-slate-700 shrink-0">{{ cmt.nickname }}:</span>
                                     <span class="text-slate-600 break-all">{{ cmt.content }}</span>
-                                    <button v-if="user?.isAdmin" @click="deleteComment(post, cmt.id)" class="ml-auto text-slate-300 hover:text-red-500"><i class="ri-close-line"></i></button>
+                                    <!-- 修改点：删除评论权限放宽 (管理员 或 评论作者) -->
+                                    <button v-if="user && (user.isAdmin || user.username === cmt.username)" @click="deleteComment(post, cmt.id)" class="ml-auto text-slate-300 hover:text-red-500 opacity-0 group-hover/cmt:opacity-100"><i class="ri-close-line"></i></button>
                                 </div>
                             </div>
                             <div class="flex gap-2">
@@ -203,21 +147,20 @@
         </div>
     </main>
 
-    <!-- 悬浮按钮 -->
     <div class="fixed right-5 z-40 flex flex-col gap-3 fab-safe">
         <button v-show="scrollY > 300" @click="scrollToTop" class="w-10 h-10 bg-white rounded-full shadow-lg text-slate-400 flex items-center justify-center"><i class="ri-arrow-up-line"></i></button>
         <button @click="checkAuthAndPost" class="w-12 h-12 bg-slate-900 text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform"><i class="ri-add-line text-xl"></i></button>
     </div>
 
-    <!-- 弹窗：登录注册 -->
     <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
         <div class="bg-white w-full max-w-xs rounded-2xl p-6 shadow-2xl">
             <h3 class="text-center font-bold text-lg mb-4">{{ authMode==='login'?'登录':'注册' }}</h3>
             <div class="space-y-3">
                 <div v-if="authMode==='register'" class="flex justify-center" @click="$refs.avatarInput.click()">
-                    <div class="w-16 h-16 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 overflow-hidden">
+                    <div class="w-16 h-16 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 overflow-hidden relative">
                         <img v-if="authForm.avatar" :src="authForm.avatar" class="w-full h-full object-cover">
                         <i v-else class="ri-camera-fill text-xl"></i>
+                        <span v-if="authForm.avatar" class="absolute bottom-0 text-[8px] bg-black/50 text-white w-full text-center">已压缩</span>
                     </div>
                     <input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarUpload">
                 </div>
@@ -233,7 +176,6 @@
         </div>
     </div>
 
-    <!-- 弹窗：发布 -->
     <div v-if="showPostModal" class="fixed inset-0 z-50 bg-white flex flex-col">
         <div class="flex justify-between items-center p-4 border-b">
             <button @click="showPostModal=false" class="text-slate-500">取消</button>
@@ -267,7 +209,6 @@
         </div>
     </div>
 
-    <!-- 图片预览 -->
     <div v-if="preview.show" class="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center" @click="preview.show=false">
         <img :src="preview.list[preview.idx]" class="max-w-full max-h-screen object-contain">
     </div>
@@ -302,7 +243,6 @@
             const columns = ref([[], [], []]);
             const windowWidth = ref(window.innerWidth);
 
-            // 瀑布流核心
             const updateColumns = () => {
                 if(!Array.isArray(posts.value)) { posts.value = []; return; }
                 const cols = windowWidth.value < 640 ? 1 : (windowWidth.value < 1024 ? 2 : 3);
@@ -317,14 +257,9 @@
             window.onscroll = () => scrollY.value = window.scrollY;
 
             onMounted(() => {
-                // 移除纯CSS loading
                 const staticLoading = document.getElementById('static-loading');
                 if(staticLoading) { staticLoading.style.opacity = 0; setTimeout(()=>staticLoading.remove(), 500); }
-                
-                try {
-                    const u = localStorage.getItem('cp_user');
-                    if(u) user.value = JSON.parse(u);
-                } catch(e){}
+                try { const u = localStorage.getItem('cp_user'); if(u) user.value = JSON.parse(u); } catch(e){}
                 fetchPosts();
             });
 
@@ -334,13 +269,11 @@
                     const res = await fetch(API);
                     if(!res.ok) throw new Error('网络开小差了');
                     const data = await res.json();
-                    if(Array.isArray(data)) posts.value = data;
-                    else throw new Error('数据格式错误');
+                    if(Array.isArray(data)) posts.value = data; else throw new Error('数据格式错误');
                 } catch(e) { error.value = e.message; posts.value = []; }
                 loading.value = false;
             };
 
-            // 修复的点赞逻辑
             const isLiked = (p) => {
                 if(!p.likedIds) return false;
                 if(user.value) return p.likedIds.includes('user:'+user.value.username);
@@ -352,14 +285,13 @@
                 if(p.liking) return;
                 p.liking = true;
                 const liked = isLiked(p);
-                // 乐观更新
                 if(liked) {
                     p.likes--;
                     if(user.value) p.likedIds = p.likedIds.filter(id => id !== 'user:'+user.value.username);
                     else {
                         const ls = JSON.parse(localStorage.getItem('cp_likes')||'[]');
                         localStorage.setItem('cp_likes', JSON.stringify(ls.filter(id=>id!==p.id)));
-                        p.likedIds = []; // 游客简易处理
+                        p.likedIds = [];
                     }
                 } else {
                     p.likes++;
@@ -370,24 +302,48 @@
                         if(!p.likedIds) p.likedIds=[]; p.likedIds.push('temp');
                     }
                 }
-                try {
-                    await fetch(`${API}?action=like`, {method:'POST', body:JSON.stringify({id:p.id, user:user.value})});
-                } catch(e){ p.likes = liked ? p.likes+1 : p.likes-1; } // 回滚
+                try { await fetch(`${API}?action=like`, {method:'POST', body:JSON.stringify({id:p.id, user:user.value})}); } catch(e){ p.likes = liked ? p.likes+1 : p.likes-1; }
                 p.liking = false;
             };
 
-            // 压缩图片
+            // ★ 修改：智能画质压缩函数
             const compress = (file) => new Promise(resolve => {
                 const r = new FileReader();
                 r.onload = e => {
                     const img = new Image();
                     img.onload = () => {
                         const cvs = document.createElement('canvas');
-                        let w=img.width, h=img.height;
-                        if(w>800){ h*=800/w; w=800; }
-                        cvs.width=w; cvs.height=h;
-                        cvs.getContext('2d').drawImage(img,0,0,w,h);
-                        resolve(cvs.toDataURL('image/jpeg', 0.8));
+                        let w = img.width, h = img.height;
+                        
+                        // 1. 优先尝试高分辨率 (1920px)
+                        const MAX_WIDTH = 1920; 
+                        if (w > MAX_WIDTH) { h *= MAX_WIDTH/w; w = MAX_WIDTH; }
+                        
+                        cvs.width = w; cvs.height = h;
+                        const ctx = cvs.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        
+                        // 2. 初始尝试高质量 (0.9)
+                        let quality = 0.9;
+                        let dataUrl = cvs.toDataURL('image/jpeg', quality);
+                        
+                        // 3. 循环检测：如果单张图超过 300KB (约为 400000 base64长度)，则降低画质重试
+                        // 目标：3张图加起来绝对不超过 1MB (约 1350000 长度)
+                        const MAX_BASE64_LEN = 350000; 
+                        while (dataUrl.length > MAX_BASE64_LEN && quality > 0.3) {
+                            quality -= 0.1;
+                            dataUrl = cvs.toDataURL('image/jpeg', quality);
+                        }
+                        
+                        // 如果还大，强制缩小尺寸再压一次
+                        if (dataUrl.length > MAX_BASE64_LEN) {
+                            w *= 0.7; h *= 0.7;
+                            cvs.width = w; cvs.height = h;
+                            ctx.drawImage(img, 0, 0, w, h);
+                            dataUrl = cvs.toDataURL('image/jpeg', 0.6);
+                        }
+
+                        resolve(dataUrl);
                     };
                     img.src = e.target.result;
                 };
@@ -418,7 +374,7 @@
                 try {
                     const res = await fetch(`${API}?action=create_post`, {method:'POST', body:JSON.stringify({user:user.value, ...postForm.value})});
                     if(res.ok) { showPostModal.value = false; postForm.value = {content:'', game:'王者荣耀', requirement:'', images:[]}; fetchPosts(); }
-                    else alert('发布失败');
+                    else alert('发布失败，可能图片太大？');
                 } catch(e){ alert('网络错误'); }
                 submitting.value = false;
             };
@@ -427,7 +383,6 @@
                 if(confirm('确定删除？')) { await fetch(`${API}?action=delete_post`, {method:'POST', body:JSON.stringify({id, user:user.value})}); fetchPosts(); }
             };
             
-            // 评论相关
             const toggleComments = async (p) => {
                 p.showComments = !p.showComments;
                 if(p.showComments && !p.loaded) {
@@ -441,7 +396,8 @@
                 if(!p.newCommentInput) return;
                 const txt = p.newCommentInput; p.newCommentInput='';
                 if(!p.commentList) p.commentList=[];
-                p.commentList.push({id:Date.now(), nickname:user.value.nickname, content:txt});
+                const tempId = Date.now().toString(); // 临时ID
+                p.commentList.push({id:tempId, nickname:user.value.nickname, username:user.value.username, content:txt}); // 记得带上username
                 p.commentsCount = (p.commentsCount||0)+1;
                 await fetch(`${API}?action=add_comment`, {method:'POST', body:JSON.stringify({postId:p.id, user:user.value, content:txt})});
             };
@@ -452,7 +408,6 @@
                 }
             };
 
-            // 辅助
             const changeFilter = g => filterGame.value = g;
             const logout = () => { user.value=null; localStorage.removeItem('cp_user'); };
             const checkAuthAndPost = () => user.value ? showPostModal.value = true : showAuthModal.value = true;
