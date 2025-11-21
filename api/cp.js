@@ -18,7 +18,7 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-// 简单的密码哈希（实际生产建议用 bcrypt，但为了减少依赖包体积，这里用简单的字符串处理）
+// 简单的密码哈希
 const hashPassword = (pwd) => {
     return Buffer.from(pwd + "cpdd_salt").toString('base64');
 };
@@ -26,7 +26,7 @@ const hashPassword = (pwd) => {
 export default async function handler(req, res) {
     // CORS 设置
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') {
@@ -46,7 +46,6 @@ export default async function handler(req, res) {
             const { username, password, nickname, avatar } = body;
             if (!username || !password || !nickname) return res.status(400).json({ error: '信息不完整' });
 
-            // 检查用户名是否存在
             const userRef = db.collection('cp_users').doc(username);
             const userDoc = await userRef.get();
             if (userDoc.exists) return res.status(400).json({ error: '用户名已存在' });
@@ -55,12 +54,12 @@ export default async function handler(req, res) {
                 username,
                 password: hashPassword(password),
                 nickname,
-                avatar: avatar || '', // 头像Base64
+                avatar: avatar || '', 
+                isAdmin: username === 'admin', // ★ 如果用户名是 admin，自动赋予管理员权限
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             };
             
             await userRef.set(userData);
-            // 返回用户信息（不含密码）
             delete userData.password;
             return res.json({ success: true, user: userData });
         }
@@ -77,6 +76,9 @@ export default async function handler(req, res) {
                 return res.status(400).json({ error: '密码错误' });
             }
 
+            // 确保返回 isAdmin 字段
+            userData.isAdmin = (userData.username === 'admin');
+            
             delete userData.password;
             return res.json({ success: true, user: userData });
         }
@@ -86,7 +88,6 @@ export default async function handler(req, res) {
         // ==========================================
 
         if (req.method === 'GET' && !action) {
-            // 获取帖子列表
             const snapshot = await db.collection('cp_posts')
                 .orderBy('timestamp', 'desc')
                 .limit(50)
@@ -95,7 +96,6 @@ export default async function handler(req, res) {
             const posts = [];
             snapshot.forEach(doc => {
                 const data = doc.data();
-                // 转换时间
                 let timeStr = "刚刚";
                 if (data.timestamp && data.timestamp._seconds) {
                     const date = new Date(data.timestamp._seconds * 1000);
@@ -117,15 +117,14 @@ export default async function handler(req, res) {
             if (!user || !user.username) return res.status(401).json({ error: '请先登录' });
             if (!content) return res.status(400).json({ error: '内容不能为空' });
 
-            // 写入 Firestore
             await db.collection('cp_posts').add({
                 nickname: user.nickname,
-                username: user.username, // 关联作者
+                username: user.username,
                 avatar: user.avatar || '',
                 game: game || '其他',
-                desc: content.slice(0, 500),
+                desc: content.slice(0, 800),
                 requirement: requirement || '',
-                images: images || [], // 存图片数组 [base64, base64...]
+                images: images || [], 
                 likes: 0,
                 commentsCount: 0,
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
@@ -133,8 +132,21 @@ export default async function handler(req, res) {
             return res.json({ success: true });
         }
 
+        // ★ 新增：管理员删除帖子
+        if (req.method === 'POST' && action === 'delete_post') {
+            const { id, user } = body;
+            // 鉴权：只有 admin 用户或者是帖子的作者(可选)才能删除
+            // 这里演示只允许 admin 删除
+            if (!user || user.username !== 'admin') {
+                return res.status(403).json({ error: '权限不足，只有管理员(admin)可以删除' });
+            }
+
+            await db.collection('cp_posts').doc(id).delete();
+            return res.json({ success: true });
+        }
+
         // ==========================================
-        // 3. 互动模块 (点赞/评论)
+        // 3. 互动模块
         // ==========================================
 
         if (req.method === 'POST' && action === 'like') {
@@ -162,8 +174,6 @@ export default async function handler(req, res) {
             if (!user) return res.status(401).json({ error: '请先登录' });
 
             const postRef = db.collection('cp_posts').doc(postId);
-            
-            // 事务：添加评论并增加评论计数
             await db.runTransaction(async (t) => {
                 const commentRef = postRef.collection('comments').doc();
                 t.set(commentRef, {
@@ -177,7 +187,6 @@ export default async function handler(req, res) {
                     commentsCount: admin.firestore.FieldValue.increment(1)
                 });
             });
-            
             return res.json({ success: true });
         }
 
