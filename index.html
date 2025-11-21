@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>CPDD 扩列小站</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.staticfile.org/vue/3.3.4/vue.global.prod.min.js"></script>
-    <link href="https://cdn.staticfile.org/remixicon/3.5.0/remixicon.css" rel="stylesheet">
+    <!-- 换用国内 360 CDN (baomitu) -->
+    <script src="https://lib.baomitu.com/tailwindcss/3.3.3/tailwind.min.js"></script>
+    <script src="https://lib.baomitu.com/vue/3.3.4/vue.global.prod.min.js"></script>
+    <link href="https://lib.baomitu.com/remixicon/3.5.0/remixicon.css" rel="stylesheet">
     <style>
         body { background-color: #f8fafc; background-image: linear-gradient(to bottom right, #fff1f2, #f8fafc, #f0f9ff); background-attachment: fixed; font-family: sans-serif; -webkit-tap-highlight-color: transparent; color: #334155; user-select: none; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -30,6 +31,7 @@
         .fab-safe { bottom: calc(32px + env(safe-area-inset-bottom)); }
         .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px; }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        
         .chat-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 16px; }
         .chat-row.mine { flex-direction: row-reverse; }
         .chat-avatar { width: 32px; height: 32px; border-radius: 50%; background: #f1f5f9; object-fit: cover; border: 1px solid white; flex-shrink: 0; }
@@ -40,9 +42,30 @@
         .chat-row.other .chat-bubble { background: #fff; color: #334155; border-top-left-radius: 4px; border: 1px solid #e2e8f0; }
         .chat-time { font-size: 9px; color: #94a3b8; margin-top: 4px; margin-left: 2px; margin-right: 2px; }
         .chat-pending { opacity: 0.7; }
+        
+        /* 错误提示层 */
+        #global-error { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 10000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; }
     </style>
 </head>
 <body>
+
+<!-- 错误边界 -->
+<div id="global-error">
+    <div style="font-size: 40px;">😵</div>
+    <h3 style="font-weight: bold; margin-top: 10px; color: #333;">页面遇到了一点问题</h3>
+    <p id="error-msg" style="font-size: 12px; color: #666; margin: 10px 0 20px; max-width: 300px; word-break: break-all;"></p>
+    <button onclick="location.reload()" style="background: #e11d48; color: white; border: none; padding: 8px 20px; border-radius: 20px; font-weight: bold; cursor: pointer;">刷新重试</button>
+</div>
+
+<script>
+    window.onerror = function(msg, url, line, col, error) {
+        document.getElementById('global-error').style.display = 'flex';
+        document.getElementById('error-msg').innerText = msg;
+        // 隐藏 Loading
+        const load = document.getElementById('static-loading');
+        if(load) load.style.display = 'none';
+    };
+</script>
 
 <div id="static-loading" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f8fafc;z-index:9999;transition:opacity 0.5s;">
     <div style="font-size:40px;animation:bounce 1s infinite;">🍡</div>
@@ -86,7 +109,6 @@
         </div>
     </div>
 
-    <!-- 列表 -->
     <main class="max-w-5xl mx-auto px-4 pt-6 pb-safe">
         <div v-if="error" class="text-center py-20">
              <div class="text-4xl mb-2">⚠️</div>
@@ -181,79 +203,16 @@
         <button @click="checkAuthAndPost" class="w-12 h-12 bg-slate-900 text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform"><i class="ri-add-line text-xl"></i></button>
     </div>
 
-    <!-- 消息中心 -->
-    <div v-if="showInboxModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-        <div class="bg-white w-full max-w-xs rounded-3xl shadow-2xl flex flex-col h-[60vh]">
-            <div class="p-4 border-b flex justify-between items-center">
-                <h3 class="font-extrabold text-lg">消息中心</h3>
-                <button @click="showInboxModal=false" class="text-slate-400"><i class="ri-close-line text-xl"></i></button>
-            </div>
-            <div class="flex-1 overflow-y-auto p-2">
-                <div v-if="!inboxList.length" class="text-center text-slate-300 text-xs py-10">暂无私信</div>
-                <div v-for="chat in inboxList" :key="chat.chatId" class="flex gap-3 items-center p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors relative group" @click="openChat({username: chat.otherUsername, nickname: chat.otherNickname, avatar: chat.otherAvatar}, chat.chatId)">
-                    <img :src="chat.otherAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chat.otherUsername}`" class="w-10 h-10 rounded-full bg-slate-100 object-cover border border-slate-200">
-                    <div class="flex-1 min-w-0">
-                        <div class="flex justify-between items-center">
-                            <span class="font-bold text-sm text-slate-700">{{ chat.otherNickname }}</span>
-                            <button @click.stop="deleteChatSession(chat.chatId)" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="ri-delete-bin-line"></i></button>
-                        </div>
-                        <p class="text-xs text-slate-500 truncate mt-0.5">{{ chat.lastMsg }}</p>
-                    </div>
-                    <div v-if="chat.unread > 0" class="absolute top-3 right-3 w-2 h-2 bg-red-500 rounded-full"></div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <div v-if="showInboxModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-fade-in"><div class="bg-white w-full max-w-xs rounded-3xl shadow-2xl flex flex-col h-[60vh]"><div class="p-4 border-b flex justify-between items-center"><h3 class="font-extrabold text-lg">消息中心</h3><button @click="showInboxModal=false" class="text-slate-400"><i class="ri-close-line text-xl"></i></button></div><div class="flex-1 overflow-y-auto p-2"><div v-if="!inboxList.length" class="text-center text-slate-300 text-xs py-10">暂无私信</div><div v-for="chat in inboxList" :key="chat.chatId" class="flex gap-3 items-center p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors relative group" @click="openChat({username: chat.otherUsername, nickname: chat.otherNickname, avatar: chat.otherAvatar}, chat.chatId)"><img :src="chat.otherAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chat.otherUsername}`" class="w-10 h-10 rounded-full bg-slate-100 object-cover border border-slate-200"><div class="flex-1 min-w-0"><div class="flex justify-between items-center"><span class="font-bold text-sm text-slate-700">{{ chat.otherNickname }}</span><button @click.stop="deleteChatSession(chat.chatId)" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="ri-delete-bin-line"></i></button></div><p class="text-xs text-slate-500 truncate mt-0.5">{{ chat.lastMsg }}</p></div><div v-if="chat.unread > 0" class="absolute top-3 right-3 w-2 h-2 bg-red-500 rounded-full"></div></div></div></div></div>
+    
+    <div v-if="showChatModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in"><div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl flex flex-col h-[70vh] relative"><div class="p-4 border-b flex justify-between items-center bg-slate-50 rounded-t-3xl z-10"><div class="flex items-center gap-2"><button @click="showChatModal=false" class="text-slate-400 hover:text-slate-600"><i class="ri-arrow-left-line text-xl"></i></button><div class="flex items-center gap-2"><img :src="chatTarget.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chatTarget.username}`" class="w-6 h-6 rounded-full bg-white border"><span class="font-bold text-sm">{{ chatTarget.nickname }}</span></div></div></div><div class="flex-1 overflow-y-auto p-4 bg-slate-50" ref="chatContainer" @scroll="handleChatScroll"><div v-if="chatMessages.length === 0" class="text-center text-slate-300 text-xs py-10">打个招呼吧 👋</div><div v-for="msg in chatMessages" :key="msg.id" class="chat-row" :class="[msg.sender === user.username ? 'mine' : 'other', msg.pending ? 'chat-pending' : '']"><img :src="(msg.sender === user.username ? user.avatar : chatTarget.avatar) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.sender}`" class="chat-avatar"><div class="chat-bubble-container"><div class="chat-bubble">{{ msg.content }}<div v-if="msg.pending" class="absolute -left-4 top-2 text-slate-400 text-xs"><i class="ri-loader-4-line animate-spin"></i></div></div><span v-if="msg.timeStr && !msg.pending" class="chat-time">{{ msg.timeStr }}</span></div></div></div><transition name="fade"><div v-if="showNewMsgToast" @click="scrollToBottom" class="absolute bottom-20 left-1/2 -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg cursor-pointer flex items-center gap-1 animate-bounce z-20"><i class="ri-arrow-down-line"></i> 有新消息</div></transition><div class="p-3 border-t bg-white rounded-b-3xl flex gap-2 z-10"><input v-model="chatInput" @keyup.enter="sendChat" ref="chatInputRef" placeholder="发消息..." class="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-slate-200 transition-all"><button @click="sendChat" :disabled="!chatInput" class="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center disabled:opacity-50 transition-transform active:scale-90"><i class="ri-send-plane-fill"></i></button></div></div></div>
 
-    <!-- 聊天窗口 (智能滚动版) -->
-    <div v-if="showChatModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-        <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl flex flex-col h-[70vh] relative">
-            <div class="p-4 border-b flex justify-between items-center bg-slate-50 rounded-t-3xl z-10">
-                <div class="flex items-center gap-2">
-                    <button @click="showChatModal=false" class="text-slate-400 hover:text-slate-600"><i class="ri-arrow-left-line text-xl"></i></button>
-                    <div class="flex items-center gap-2">
-                        <img :src="chatTarget.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chatTarget.username}`" class="w-6 h-6 rounded-full bg-white border">
-                        <span class="font-bold text-sm">{{ chatTarget.nickname }}</span>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- 聊天内容区 -->
-            <div class="flex-1 overflow-y-auto p-4 bg-slate-50" ref="chatContainer" @scroll="handleChatScroll">
-                <div v-if="chatMessages.length === 0" class="text-center text-slate-300 text-xs py-10">
-                    打个招呼吧 👋
-                </div>
-                <div v-for="msg in chatMessages" :key="msg.id" class="chat-row" :class="[msg.sender === user.username ? 'mine' : 'other', msg.pending ? 'chat-pending' : '']">
-                    <img :src="(msg.sender === user.username ? user.avatar : chatTarget.avatar) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.sender}`" class="chat-avatar">
-                    <div class="chat-bubble-container">
-                        <div class="chat-bubble">
-                            {{ msg.content }}
-                            <div v-if="msg.pending" class="absolute -left-4 top-2 text-slate-400 text-xs"><i class="ri-loader-4-line animate-spin"></i></div>
-                        </div>
-                        <span v-if="msg.timeStr && !msg.pending" class="chat-time">{{ msg.timeStr }}</span>
-                    </div>
-                </div>
-            </div>
+    <!-- Profile Modal -->
+    <div v-if="showProfileModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-fade-in"><div class="bg-white w-full max-w-xs rounded-3xl shadow-2xl p-6 overflow-y-auto max-h-[90vh]"><div class="flex justify-between items-center mb-4"><h3 class="font-extrabold text-lg text-slate-800">{{ isMyProfile ? '我的资料' : '用户资料' }}</h3><button @click="showProfileModal=false" class="text-slate-400 hover:text-slate-600"><i class="ri-close-line text-xl"></i></button></div><div class="space-y-4 text-center"><div class="flex justify-center"><div class="relative w-24 h-24 group" :class="{'cursor-pointer': isMyProfile}" @click="isMyProfile && $refs.profileAvatarInput.click()"><img :src="viewingUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${viewingUser.username}`" class="w-full h-full rounded-full object-cover border-4 border-white shadow-lg"><div v-if="isMyProfile" class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"><i class="ri-camera-fill text-2xl"></i></div><input v-if="isMyProfile" type="file" ref="profileAvatarInput" hidden accept="image/*" @change="handleProfileAvatarChange"></div></div><div><h2 class="font-bold text-xl text-slate-800">{{ viewingUser.nickname }}</h2><p class="text-xs text-slate-400 font-mono mt-1">@{{ viewingUser.username }}</p></div><div v-if="!isMyProfile" class="space-y-3 text-left bg-slate-50 p-4 rounded-2xl"><div class="flex justify-between text-sm"><span class="text-slate-400">性别</span> <span class="font-bold">{{ genderMap[viewingUser.gender] || '保密' }}</span></div><div class="flex justify-between text-sm"><span class="text-slate-400">想找</span> <span class="font-bold">{{ targetMap[viewingUser.target] || '不限' }}</span></div><div v-if="viewingUser.qq" class="flex justify-between text-sm items-center"><span class="text-slate-400">QQ</span> <button @click="copyText(viewingUser.qq, 'QQ')" class="text-blue-500 font-bold text-xs bg-blue-50 px-2 py-0.5 rounded">复制</button></div><div v-if="viewingUser.wx" class="flex justify-between text-sm items-center"><span class="text-slate-400">微信</span> <button @click="copyText(viewingUser.wx, '微信')" class="text-green-500 font-bold text-xs bg-green-50 px-2 py-0.5 rounded">复制</button></div><button @click="openChat(viewingUser)" class="w-full bg-slate-800 text-white py-2.5 rounded-xl font-bold mt-2 shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"><i class="ri-message-3-line"></i> 发私信</button></div><div v-else class="space-y-4 text-left"><div><label class="text-xs font-bold text-slate-400 block mb-2">我的性别</label><div class="flex gap-2"><button @click="profileForm.gender='male'" class="flex-1 py-2 rounded-lg text-xs font-bold border transition-all" :class="profileForm.gender==='male'?'bg-blue-50 border-blue-200 text-blue-500':'bg-white border-slate-200 text-slate-400'">男生</button><button @click="profileForm.gender='female'" class="flex-1 py-2 rounded-lg text-xs font-bold border transition-all" :class="profileForm.gender==='female'?'bg-pink-50 border-pink-200 text-pink-500':'bg-white border-slate-200 text-slate-400'">女生</button></div></div><div><label class="text-xs font-bold text-slate-400 block mb-2">想找</label><div class="flex gap-2"><button @click="profileForm.target='male'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='male'?'bg-blue-50 border-blue-200 text-blue-500':'bg-white border-slate-200 text-slate-400'">找男生</button><button @click="profileForm.target='female'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='female'?'bg-pink-50 border-pink-200 text-pink-500':'bg-white border-slate-200 text-slate-400'">找女生</button><button @click="profileForm.target='all'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='all'?'bg-purple-50 border-purple-200 text-purple-500':'bg-white border-slate-200 text-slate-400'">都可以</button></div></div><div class="space-y-2"><div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100"><i class="ri-qq-fill text-blue-400"></i><input v-model="profileForm.qq" placeholder="QQ号 (选填)" class="bg-transparent text-xs w-full outline-none"></div><div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100"><i class="ri-wechat-fill text-green-400"></i><input v-model="profileForm.wx" placeholder="微信号 (选填)" class="bg-transparent text-xs w-full outline-none"></div></div><button @click="handleProfileUpdate" :disabled="isUpdatingProfile" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-all disabled:opacity-50">{{ isUpdatingProfile ? '保存中...' : '保存资料' }}</button><button @click="logout" class="w-full text-xs text-red-400 hover:text-red-600 py-2">退出登录</button></div></div></div></div>
 
-            <!-- 新消息提示气泡 (点击滚动到底部) -->
-            <transition name="fade">
-                <div v-if="showNewMsgToast" @click="scrollToBottom" class="absolute bottom-20 left-1/2 -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg cursor-pointer flex items-center gap-1 animate-bounce z-20">
-                    <i class="ri-arrow-down-line"></i> 有新消息
-                </div>
-            </transition>
-
-            <div class="p-3 border-t bg-white rounded-b-3xl flex gap-2 z-10">
-                <input v-model="chatInput" @keyup.enter="sendChat" ref="chatInputRef" placeholder="发消息..." class="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-slate-200 transition-all">
-                <button @click="sendChat" :disabled="!chatInput" class="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center disabled:opacity-50 transition-transform active:scale-90"><i class="ri-send-plane-fill"></i></button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Auth/Profile/Post Modals (省略以保持代码精简) -->
-    <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm"><div class="bg-white w-full max-w-xs rounded-2xl p-6 shadow-2xl"><h3 class="text-center font-bold text-lg mb-4">{{ authMode==='login'?'登录':'注册' }}</h3><div class="space-y-3"><div v-if="authMode==='register'" class="flex justify-center" @click="$refs.avatarInput.click()"><div class="w-16 h-16 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 overflow-hidden relative"><img v-if="authForm.avatar" :src="authForm.avatar" class="w-full h-full object-cover"><i v-else class="ri-camera-fill text-xl"></i><span v-if="authForm.avatar" class="absolute bottom-0 text-[8px] bg-black/50 text-white w-full text-center">已压缩</span></div><input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarUpload"></div><input v-model="authForm.username" :placeholder="authMode==='register' && authForm.username!=='admin' ? '账号 (≥8位)' : '账号'" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><input v-model="authForm.password" type="password" placeholder="密码 (≥6位)" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><input v-if="authMode==='register'" v-model="authForm.nickname" placeholder="昵称" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><button @click="handleAuth" :disabled="isAuthing" class="w-full bg-slate-900 text-white py-2 rounded-lg text-xs font-bold">{{ isAuthing?'处理中...':'确定' }}</button></div><div class="flex justify-between mt-4 text-xs text-slate-400"><button @click="authMode = authMode==='login'?'register':'login'">切换{{ authMode==='login'?'注册':'登录' }}</button><button @click="showAuthModal=false">关闭</button></div></div></div>
+    <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm"><div class="bg-white w-full max-w-xs rounded-2xl p-6 shadow-2xl"><h3 class="text-center font-bold text-lg mb-4">{{ authMode==='login'?'登录':'注册' }}</h3><div class="space-y-3"><div v-if="authMode==='register'" class="flex justify-center" @click="$refs.avatarInput.click()"><div class="w-16 h-16 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 overflow-hidden relative"><img v-if="authForm.avatar" :src="authForm.avatar" class="w-full h-full object-cover"><i v-else class="ri-camera-fill text-xl"></i></div><input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarUpload"></div><input v-model="authForm.username" :placeholder="authMode==='register' && authForm.username!=='admin' ? '账号 (≥8位)' : '账号'" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><input v-model="authForm.password" type="password" placeholder="密码 (≥6位)" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><input v-if="authMode==='register'" v-model="authForm.nickname" placeholder="昵称" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><button @click="handleAuth" :disabled="isAuthing" class="w-full bg-slate-900 text-white py-2 rounded-lg text-xs font-bold">{{ isAuthing?'处理中...':'确定' }}</button></div><div class="flex justify-between mt-4 text-xs text-slate-400"><button @click="authMode = authMode==='login'?'register':'login'">切换{{ authMode==='login'?'注册':'登录' }}</button><button @click="showAuthModal=false">关闭</button></div></div></div>
     <div v-if="showPostModal" class="fixed inset-0 z-50 bg-white flex flex-col"><div class="flex justify-between items-center p-4 border-b"><button @click="showPostModal=false" class="text-slate-500">取消</button><h3 class="font-bold">发布动态</h3><button @click="submitPost" :disabled="submitting" class="bg-rose-500 text-white px-4 py-1 rounded-full text-xs font-bold">{{ submitting?'...':'发布' }}</button></div><div class="p-4 flex-1 overflow-y-auto"><textarea v-model="postForm.content" class="w-full h-32 text-sm outline-none placeholder-slate-300 resize-none" placeholder="说点什么..."></textarea><div class="flex flex-wrap gap-2 mb-4"><div v-for="(img,i) in postForm.images" :key="i" class="w-20 h-20 rounded bg-slate-100 relative overflow-hidden"><img :src="img" class="w-full h-full object-cover"><button @click="removeImage(i)" class="absolute top-0 right-0 bg-black/50 text-white w-5 h-5 flex items-center justify-center text-xs">&times;</button></div><div v-if="postForm.images.length<3" @click="$refs.pInput.click()" class="w-20 h-20 rounded border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-300"><i class="ri-add-line text-xl"></i></div><input type="file" ref="pInput" hidden accept="image/*" @change="handlePostImageUpload"></div><div class="space-y-4"><div><label class="text-xs font-bold text-slate-400 block mb-2">分区</label><div class="flex flex-wrap gap-2"><button v-for="g in games.slice(1)" :key="g" @click="postForm.game=g" class="px-3 py-1 rounded border text-xs" :class="postForm.game===g?'bg-slate-800 text-white':'bg-white text-slate-500'">{{ g }}</button></div></div><div><label class="text-xs font-bold text-slate-400 block mb-2">要求</label><input v-model="postForm.requirement" class="w-full bg-slate-50 rounded px-3 py-2 text-xs outline-none" placeholder="选填..."></div></div></div></div>
     <div v-if="preview.show" class="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center" @click="preview.show=false"><img :src="preview.list[preview.idx]" class="max-w-full max-h-screen object-contain"></div>
-    <div v-if="showProfileModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-fade-in"><div class="bg-white w-full max-w-xs rounded-3xl shadow-2xl p-6 overflow-y-auto max-h-[90vh]"><div class="flex justify-between items-center mb-4"><h3 class="font-extrabold text-lg text-slate-800">{{ isMyProfile ? '我的资料' : '用户资料' }}</h3><button @click="showProfileModal=false" class="text-slate-400 hover:text-slate-600"><i class="ri-close-line text-xl"></i></button></div><div class="space-y-4 text-center"><div class="flex justify-center"><div class="relative w-24 h-24 group" :class="{'cursor-pointer': isMyProfile}" @click="isMyProfile && $refs.profileAvatarInput.click()"><img :src="viewingUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${viewingUser.username}`" class="w-full h-full rounded-full object-cover border-4 border-white shadow-lg"><div v-if="isMyProfile" class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"><i class="ri-camera-fill text-2xl"></i></div><input v-if="isMyProfile" type="file" ref="profileAvatarInput" hidden accept="image/*" @change="handleProfileAvatarChange"></div></div><div><h2 class="font-bold text-xl text-slate-800">{{ viewingUser.nickname }}</h2><p class="text-xs text-slate-400 font-mono mt-1">@{{ viewingUser.username }}</p></div><div v-if="!isMyProfile" class="space-y-3 text-left bg-slate-50 p-4 rounded-2xl"><div class="flex justify-between text-sm"><span class="text-slate-400">性别</span> <span class="font-bold">{{ genderMap[viewingUser.gender] || '保密' }}</span></div><div class="flex justify-between text-sm"><span class="text-slate-400">想找</span> <span class="font-bold">{{ targetMap[viewingUser.target] || '不限' }}</span></div><div v-if="viewingUser.qq" class="flex justify-between text-sm items-center"><span class="text-slate-400">QQ</span> <button @click="copyText(viewingUser.qq, 'QQ')" class="text-blue-500 font-bold text-xs bg-blue-50 px-2 py-0.5 rounded">复制</button></div><div v-if="viewingUser.wx" class="flex justify-between text-sm items-center"><span class="text-slate-400">微信</span> <button @click="copyText(viewingUser.wx, '微信')" class="text-green-500 font-bold text-xs bg-green-50 px-2 py-0.5 rounded">复制</button></div><button @click="openChat(viewingUser)" class="w-full bg-slate-800 text-white py-2.5 rounded-xl font-bold mt-2 shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"><i class="ri-message-3-line"></i> 发私信</button></div><div v-else class="space-y-4 text-left"><div><label class="text-xs font-bold text-slate-400 block mb-2">我的性别</label><div class="flex gap-2"><button @click="profileForm.gender='male'" class="flex-1 py-2 rounded-lg text-xs font-bold border transition-all" :class="profileForm.gender==='male'?'bg-blue-50 border-blue-200 text-blue-500':'bg-white border-slate-200 text-slate-400'">男生</button><button @click="profileForm.gender='female'" class="flex-1 py-2 rounded-lg text-xs font-bold border transition-all" :class="profileForm.gender==='female'?'bg-pink-50 border-pink-200 text-pink-500':'bg-white border-slate-200 text-slate-400'">女生</button></div></div><div><label class="text-xs font-bold text-slate-400 block mb-2">想找</label><div class="flex gap-2"><button @click="profileForm.target='male'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='male'?'bg-blue-50 border-blue-200 text-blue-500':'bg-white border-slate-200 text-slate-400'">找男生</button><button @click="profileForm.target='female'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='female'?'bg-pink-50 border-pink-200 text-pink-500':'bg-white border-slate-200 text-slate-400'">找女生</button><button @click="profileForm.target='all'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='all'?'bg-purple-50 border-purple-200 text-purple-500':'bg-white border-slate-200 text-slate-400'">都可以</button></div></div><div class="space-y-2"><div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100"><i class="ri-qq-fill text-blue-400"></i><input v-model="profileForm.qq" placeholder="QQ号 (选填)" class="bg-transparent text-xs w-full outline-none"></div><div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100"><i class="ri-wechat-fill text-green-400"></i><input v-model="profileForm.wx" placeholder="微信号 (选填)" class="bg-transparent text-xs w-full outline-none"></div></div><button @click="handleProfileUpdate" :disabled="isUpdatingProfile" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-all disabled:opacity-50">{{ isUpdatingProfile ? '保存中...' : '保存资料' }}</button><button @click="logout" class="w-full text-xs text-red-400 hover:text-red-600 py-2">退出登录</button></div></div></div></div>
 
 </div>
 
@@ -270,6 +229,7 @@
             const scrollY = ref(0);
             const notice = "欢迎来到 CPDD 扩列小站！严禁发布违规信息。";
 
+            // Modal States
             const showAuthModal = ref(false);
             const authMode = ref('login');
             const showPostModal = ref(false);
@@ -277,6 +237,7 @@
             const showInboxModal = ref(false);
             const showChatModal = ref(false);
             
+            // Data States
             const submitting = ref(false);
             const isAuthing = ref(false);
             const isUpdatingProfile = ref(false);
@@ -289,11 +250,8 @@
             const chatTarget = ref({});
             const chatInput = ref('');
             const totalUnread = ref(0);
-            
-            // 滚动智能判断状态
             const isUserAtBottom = ref(true);
             const showNewMsgToast = ref(false);
-
             let chatPoller = null;
             let inboxPoller = null;
 
@@ -308,23 +266,8 @@
             const targetMap = { male:'找男生', female:'找女生', all:'不限' };
 
             // --- 核心：滚动与消息处理 ---
-            
-            const scrollToBottom = () => {
-                const el = app._instance.refs.chatContainer;
-                if(el) {
-                    el.scrollTop = el.scrollHeight;
-                    isUserAtBottom.value = true;
-                    showNewMsgToast.value = false;
-                }
-            };
-
-            const handleChatScroll = (e) => {
-                const el = e.target;
-                // 允许 50px 的误差
-                const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-                isUserAtBottom.value = isBottom;
-                if (isBottom) showNewMsgToast.value = false;
-            };
+            const scrollToBottom = () => { const el = app._instance.refs.chatContainer; if(el) { el.scrollTop = el.scrollHeight; isUserAtBottom.value = true; showNewMsgToast.value = false; } };
+            const handleChatScroll = (e) => { const el = e.target; const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50; isUserAtBottom.value = isBottom; if (isBottom) showNewMsgToast.value = false; };
 
             const openChat = async (target, chatId) => {
                 showProfileModal.value = false;
@@ -333,110 +276,66 @@
                 serverMessages.value = [];
                 pendingMessages.value = [];
                 showNewMsgToast.value = false;
-                isUserAtBottom.value = true; // 初始设为在底部，以便首次加载自动滚动
+                isUserAtBottom.value = true;
                 showChatModal.value = true;
-                
                 if(chatId) {
                     const chat = inboxList.value.find(c => c.chatId === chatId);
-                    if(chat && chat.unread > 0) { 
-                        totalUnread.value = Math.max(0, totalUnread.value - chat.unread); 
-                        chat.unread = 0; 
-                    }
+                    if(chat && chat.unread > 0) { totalUnread.value = Math.max(0, totalUnread.value - chat.unread); chat.unread = 0; }
                     await fetch(`${API}?action=chat_read`, {method:'POST', body:JSON.stringify({user:user.value, chatId})});
                 }
-
-                // 首次加载，强制滚动到底部
                 await fetchChatHistory(true);
-                
                 if (chatPoller) clearInterval(chatPoller);
                 chatPoller = setInterval(() => fetchChatHistory(false), 3000);
-                
-                // 聚焦输入框
-                nextTick(() => {
-                    const inputEl = app._instance.refs.chatInputRef;
-                    if(inputEl) inputEl.focus();
-                });
+                nextTick(() => { const el = app._instance.refs.chatInputRef; if(el) el.focus(); });
             };
 
-            const currentChatId = computed(() => {
-                if (!user.value || !chatTarget.value.username) return null;
-                return [user.value.username, chatTarget.value.username].sort().join('_');
-            });
+            const currentChatId = computed(() => { if (!user.value || !chatTarget.value.username) return null; return [user.value.username, chatTarget.value.username].sort().join('_'); });
 
             const fetchChatHistory = async (isInitial = false) => {
                 if (!showChatModal.value) return;
                 const reqChatId = currentChatId.value; 
                 const res = await fetch(`${API}?action=chat_history&u1=${user.value.username}&u2=${chatTarget.value.username}`);
                 if (reqChatId !== currentChatId.value) return;
-
                 const msgs = await res.json();
                 
-                // 检测是否有新消息
                 const oldLastId = serverMessages.value.length ? serverMessages.value[serverMessages.value.length-1].id : 0;
                 const newLastId = msgs.length ? msgs[msgs.length-1].id : 0;
-                
                 serverMessages.value = msgs;
-                // 过滤掉已上服务器的本地消息
-                pendingMessages.value = pendingMessages.value.filter(p => 
-                    !msgs.some(s => s.content === p.content && s.sender === p.sender && Math.abs(p.timestamp - (s.timestamp?s.timestamp._seconds*1000:0)) < 10000)
-                );
+                pendingMessages.value = pendingMessages.value.filter(p => !msgs.some(s => s.content === p.content && s.sender === p.sender && Math.abs(p.timestamp - (s.timestamp?s.timestamp._seconds*1000:0)) < 10000));
 
-                // 滚动逻辑
-                if (isInitial) {
-                    nextTick(scrollToBottom);
-                } else if (newLastId !== oldLastId && newLastId !== 0) {
-                    // 有新消息
-                    if (isUserAtBottom.value) {
-                        nextTick(scrollToBottom);
-                    } else {
-                        showNewMsgToast.value = true;
-                    }
-                }
+                if (isInitial) nextTick(scrollToBottom);
+                else if (newLastId !== oldLastId && newLastId !== 0) { if (isUserAtBottom.value) nextTick(scrollToBottom); else showNewMsgToast.value = true; }
             };
 
             const mergedMessages = computed(() => {
-                const list = [...serverMessages.value, ...pendingMessages.value].sort((a,b) => {
+                return [...serverMessages.value, ...pendingMessages.value].sort((a,b) => {
                     const ta = a.timestamp?._seconds ? a.timestamp._seconds * 1000 : a.timestamp;
                     const tb = b.timestamp?._seconds ? b.timestamp._seconds * 1000 : b.timestamp;
                     return ta - tb;
                 });
-                return list;
             });
 
             const sendChat = async () => {
                 if (!chatInput.value.trim()) return;
-                const txt = chatInput.value;
-                chatInput.value = '';
+                const txt = chatInput.value; chatInput.value = '';
                 const now = Date.now();
-                const tempMsg = { id: now, sender: user.value.username, content: txt, timestamp: now, pending: true };
-                pendingMessages.value.push(tempMsg);
-                
-                // 发送消息时强制滚动到底部
+                pendingMessages.value.push({ id: now, sender: user.value.username, content: txt, timestamp: now, pending: true });
                 nextTick(scrollToBottom);
-
                 try {
-                    await fetch(`${API}?action=chat_send`, {
-                        method: 'POST', 
-                        body: JSON.stringify({ user: user.value, toUsername: chatTarget.value.username, content: txt })
-                    });
-                    fetchChatHistory(false); // 立即拉取一次
-                } catch(e) {
-                    alert('发送失败');
-                    pendingMessages.value = pendingMessages.value.filter(m => m.id !== now);
-                }
+                    await fetch(`${API}?action=chat_send`, {method: 'POST', body: JSON.stringify({ user: user.value, toUsername: chatTarget.value.username, content: txt })});
+                    fetchChatHistory(false);
+                } catch(e) { alert('发送失败'); pendingMessages.value = pendingMessages.value.filter(m => m.id !== now); }
             };
 
-            // --- 其他逻辑保持不变 ---
+            watch(showChatModal, (val) => { if (!val && chatPoller) clearInterval(chatPoller); });
+
+            // --- 其他逻辑 ---
             const checkUnread = async () => {
                 if (!user.value) return;
                 try {
                     const res = await fetch(`${API}?action=chat_inbox&username=${user.value.username}`);
                     const list = await res.json();
-                    if(Array.isArray(list)) {
-                        const count = list.reduce((sum, chat) => sum + (chat.unread || 0), 0);
-                        totalUnread.value = count;
-                        inboxList.value = list;
-                    }
+                    if(Array.isArray(list)) { totalUnread.value = list.reduce((sum, chat) => sum + (chat.unread || 0), 0); inboxList.value = list; }
                 } catch(e) {}
             };
 
@@ -453,20 +352,8 @@
                 else if (!u && inboxPoller) { clearInterval(inboxPoller); inboxPoller = null; }
             });
 
-            watch(showChatModal, (val) => { if (!val && chatPoller) clearInterval(chatPoller); });
-
-            const deleteChatSession = async (chatId) => {
-                if(!confirm('删除会话?')) return;
-                await fetch(`${API}?action=delete_chat_session`, {method:'POST', body:JSON.stringify({user:user.value, chatId})});
-                inboxList.value = inboxList.value.filter(c => c.chatId !== chatId);
-            };
-
-            const handleAvatarClick = async (username) => {
-                if (!user.value) return showAuthModal.value = true;
-                if (username === user.value.username) { viewingUser.value = user.value; profileForm.value = { ...user.value, gender:user.value.gender||'', target:user.value.target||'all' }; isMyProfile.value = true; } 
-                else { try { const res = await fetch(`${API}?action=get_user_profile&username=${username}`); if (res.ok) { viewingUser.value = await res.json(); isMyProfile.value = false; } } catch(e) { alert('获取资料失败'); return; } }
-                showProfileModal.value = true;
-            };
+            const deleteChatSession = async (chatId) => { if(!confirm('删除会话?')) return; await fetch(`${API}?action=delete_chat_session`, {method:'POST', body:JSON.stringify({user:user.value, chatId})}); inboxList.value = inboxList.value.filter(c => c.chatId !== chatId); };
+            const handleAvatarClick = async (username) => { if (!user.value) return showAuthModal.value = true; if (username === user.value.username) { viewingUser.value = user.value; profileForm.value = { ...user.value, gender:user.value.gender||'', target:user.value.target||'all' }; isMyProfile.value = true; } else { try { const res = await fetch(`${API}?action=get_user_profile&username=${username}`); if (res.ok) { viewingUser.value = await res.json(); isMyProfile.value = false; } } catch(e) { alert('获取资料失败'); return; } } showProfileModal.value = true; };
             let longPressTimer = null;
             const startLongPress = (post, cmt) => { longPressTimer = setTimeout(() => { if(navigator.vibrate) navigator.vibrate(50); triggerReply(post, cmt); }, 600); };
             const endLongPress = () => { clearTimeout(longPressTimer); };
@@ -502,14 +389,14 @@
                 showAuthModal, authMode, authForm, isAuthing, showPostModal, postForm, submitting, preview,
                 showProfileModal, profileForm, isUpdatingProfile, viewingUser, isMyProfile, genderMap, targetMap,
                 showInboxModal, inboxList, showChatModal, chatMessages: mergedMessages, chatTarget, chatInput, totalUnread,
+                handleChatScroll, scrollToBottom, showNewMsgToast,
                 
                 refresh:fetchPosts, handleAuth, handleAvatarUpload, handlePostImageUpload, submitPost,
                 deletePost, isLiked, handleLike, toggleComments, submitComment, deleteComment,
                 changeFilter, logout, checkAuthAndPost, removeImage, previewImage, scrollToTop,
                 startLongPress, endLongPress, triggerReply,
                 handleProfileAvatarChange, handleProfileUpdate, copyText, handleAvatarClick,
-                openInbox, openChat, sendChat, deleteChatSession,
-                handleChatScroll, scrollToBottom, showNewMsgToast // 导出新方法
+                openInbox, openChat, sendChat, deleteChatSession
             };
         }
     }).mount('#app');
