@@ -30,7 +30,6 @@
         .fab-safe { bottom: calc(32px + env(safe-area-inset-bottom)); }
         .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px; }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-        
         .chat-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 16px; }
         .chat-row.mine { flex-direction: row-reverse; }
         .chat-avatar { width: 32px; height: 32px; border-radius: 50%; background: #f1f5f9; object-fit: cover; border: 1px solid white; flex-shrink: 0; }
@@ -87,21 +86,25 @@
         </div>
     </div>
 
+    <!-- 列表 -->
     <main class="max-w-5xl mx-auto px-4 pt-6 pb-safe">
         <div v-if="error" class="text-center py-20">
              <div class="text-4xl mb-2">⚠️</div>
              <p class="text-sm text-slate-500 mb-4">{{ error }}</p>
              <button @click="refresh" class="bg-rose-500 text-white px-6 py-2 rounded-full text-sm font-bold">重试</button>
         </div>
+
         <div v-else-if="loading" class="text-center py-32 text-rose-300">
             <i class="ri-loader-4-line text-3xl animate-spin"></i>
             <p class="text-xs font-bold mt-2">加载中...</p>
         </div>
+
         <div v-else-if="!posts.length" class="text-center py-32 text-slate-400">
             <div class="text-5xl mb-2 grayscale opacity-50">🏔️</div>
             <p class="text-sm font-bold">暂无内容</p>
             <button @click="checkAuthAndPost" class="mt-4 text-rose-500 text-xs font-bold hover:underline">去发布</button>
         </div>
+
         <div v-else class="flex gap-4 items-start">
             <div v-for="(col, i) in columns" :key="i" class="flex-1 flex flex-col gap-4 min-w-0">
                 <div v-for="post in col" :key="post.id" class="app-card p-4 group relative">
@@ -202,10 +205,10 @@
         </div>
     </div>
 
-    <!-- 聊天窗口 (防闪烁) -->
+    <!-- 聊天窗口 (智能滚动版) -->
     <div v-if="showChatModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
-        <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl flex flex-col h-[70vh]">
-            <div class="p-4 border-b flex justify-between items-center bg-slate-50 rounded-t-3xl">
+        <div class="bg-white w-full max-w-sm rounded-3xl shadow-2xl flex flex-col h-[70vh] relative">
+            <div class="p-4 border-b flex justify-between items-center bg-slate-50 rounded-t-3xl z-10">
                 <div class="flex items-center gap-2">
                     <button @click="showChatModal=false" class="text-slate-400 hover:text-slate-600"><i class="ri-arrow-left-line text-xl"></i></button>
                     <div class="flex items-center gap-2">
@@ -214,7 +217,12 @@
                     </div>
                 </div>
             </div>
-            <div class="flex-1 overflow-y-auto p-4 bg-slate-50" ref="chatContainer">
+            
+            <!-- 聊天内容区 -->
+            <div class="flex-1 overflow-y-auto p-4 bg-slate-50" ref="chatContainer" @scroll="handleChatScroll">
+                <div v-if="chatMessages.length === 0" class="text-center text-slate-300 text-xs py-10">
+                    打个招呼吧 👋
+                </div>
                 <div v-for="msg in chatMessages" :key="msg.id" class="chat-row" :class="[msg.sender === user.username ? 'mine' : 'other', msg.pending ? 'chat-pending' : '']">
                     <img :src="(msg.sender === user.username ? user.avatar : chatTarget.avatar) || `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.sender}`" class="chat-avatar">
                     <div class="chat-bubble-container">
@@ -226,15 +234,23 @@
                     </div>
                 </div>
             </div>
-            <div class="p-3 border-t bg-white rounded-b-3xl flex gap-2">
-                <input v-model="chatInput" @keyup.enter="sendChat" placeholder="发消息..." class="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-slate-200 transition-all">
+
+            <!-- 新消息提示气泡 (点击滚动到底部) -->
+            <transition name="fade">
+                <div v-if="showNewMsgToast" @click="scrollToBottom" class="absolute bottom-20 left-1/2 -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg cursor-pointer flex items-center gap-1 animate-bounce z-20">
+                    <i class="ri-arrow-down-line"></i> 有新消息
+                </div>
+            </transition>
+
+            <div class="p-3 border-t bg-white rounded-b-3xl flex gap-2 z-10">
+                <input v-model="chatInput" @keyup.enter="sendChat" ref="chatInputRef" placeholder="发消息..." class="flex-1 bg-slate-100 rounded-full px-4 py-2 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-slate-200 transition-all">
                 <button @click="sendChat" :disabled="!chatInput" class="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center disabled:opacity-50 transition-transform active:scale-90"><i class="ri-send-plane-fill"></i></button>
             </div>
         </div>
     </div>
 
-    <!-- Other Modals 省略... -->
-    <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm"><div class="bg-white w-full max-w-xs rounded-2xl p-6 shadow-2xl"><h3 class="text-center font-bold text-lg mb-4">{{ authMode==='login'?'登录':'注册' }}</h3><div class="space-y-3"><div v-if="authMode==='register'" class="flex justify-center" @click="$refs.avatarInput.click()"><div class="w-16 h-16 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 overflow-hidden relative"><img v-if="authForm.avatar" :src="authForm.avatar" class="w-full h-full object-cover"><i v-else class="ri-camera-fill text-xl"></i></div><input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarUpload"></div><input v-model="authForm.username" :placeholder="authMode==='register' && authForm.username!=='admin' ? '账号 (≥8位)' : '账号'" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><input v-model="authForm.password" type="password" placeholder="密码 (≥6位)" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><input v-if="authMode==='register'" v-model="authForm.nickname" placeholder="昵称" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><button @click="handleAuth" :disabled="isAuthing" class="w-full bg-slate-900 text-white py-2 rounded-lg text-xs font-bold">{{ isAuthing?'处理中...':'确定' }}</button></div><div class="flex justify-between mt-4 text-xs text-slate-400"><button @click="authMode = authMode==='login'?'register':'login'">切换{{ authMode==='login'?'注册':'登录' }}</button><button @click="showAuthModal=false">关闭</button></div></div></div>
+    <!-- Auth/Profile/Post Modals (省略以保持代码精简) -->
+    <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm"><div class="bg-white w-full max-w-xs rounded-2xl p-6 shadow-2xl"><h3 class="text-center font-bold text-lg mb-4">{{ authMode==='login'?'登录':'注册' }}</h3><div class="space-y-3"><div v-if="authMode==='register'" class="flex justify-center" @click="$refs.avatarInput.click()"><div class="w-16 h-16 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 overflow-hidden relative"><img v-if="authForm.avatar" :src="authForm.avatar" class="w-full h-full object-cover"><i v-else class="ri-camera-fill text-xl"></i><span v-if="authForm.avatar" class="absolute bottom-0 text-[8px] bg-black/50 text-white w-full text-center">已压缩</span></div><input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarUpload"></div><input v-model="authForm.username" :placeholder="authMode==='register' && authForm.username!=='admin' ? '账号 (≥8位)' : '账号'" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><input v-model="authForm.password" type="password" placeholder="密码 (≥6位)" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><input v-if="authMode==='register'" v-model="authForm.nickname" placeholder="昵称" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs"><button @click="handleAuth" :disabled="isAuthing" class="w-full bg-slate-900 text-white py-2 rounded-lg text-xs font-bold">{{ isAuthing?'处理中...':'确定' }}</button></div><div class="flex justify-between mt-4 text-xs text-slate-400"><button @click="authMode = authMode==='login'?'register':'login'">切换{{ authMode==='login'?'注册':'登录' }}</button><button @click="showAuthModal=false">关闭</button></div></div></div>
     <div v-if="showPostModal" class="fixed inset-0 z-50 bg-white flex flex-col"><div class="flex justify-between items-center p-4 border-b"><button @click="showPostModal=false" class="text-slate-500">取消</button><h3 class="font-bold">发布动态</h3><button @click="submitPost" :disabled="submitting" class="bg-rose-500 text-white px-4 py-1 rounded-full text-xs font-bold">{{ submitting?'...':'发布' }}</button></div><div class="p-4 flex-1 overflow-y-auto"><textarea v-model="postForm.content" class="w-full h-32 text-sm outline-none placeholder-slate-300 resize-none" placeholder="说点什么..."></textarea><div class="flex flex-wrap gap-2 mb-4"><div v-for="(img,i) in postForm.images" :key="i" class="w-20 h-20 rounded bg-slate-100 relative overflow-hidden"><img :src="img" class="w-full h-full object-cover"><button @click="removeImage(i)" class="absolute top-0 right-0 bg-black/50 text-white w-5 h-5 flex items-center justify-center text-xs">&times;</button></div><div v-if="postForm.images.length<3" @click="$refs.pInput.click()" class="w-20 h-20 rounded border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-300"><i class="ri-add-line text-xl"></i></div><input type="file" ref="pInput" hidden accept="image/*" @change="handlePostImageUpload"></div><div class="space-y-4"><div><label class="text-xs font-bold text-slate-400 block mb-2">分区</label><div class="flex flex-wrap gap-2"><button v-for="g in games.slice(1)" :key="g" @click="postForm.game=g" class="px-3 py-1 rounded border text-xs" :class="postForm.game===g?'bg-slate-800 text-white':'bg-white text-slate-500'">{{ g }}</button></div></div><div><label class="text-xs font-bold text-slate-400 block mb-2">要求</label><input v-model="postForm.requirement" class="w-full bg-slate-50 rounded px-3 py-2 text-xs outline-none" placeholder="选填..."></div></div></div></div>
     <div v-if="preview.show" class="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center" @click="preview.show=false"><img :src="preview.list[preview.idx]" class="max-w-full max-h-screen object-contain"></div>
     <div v-if="showProfileModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-fade-in"><div class="bg-white w-full max-w-xs rounded-3xl shadow-2xl p-6 overflow-y-auto max-h-[90vh]"><div class="flex justify-between items-center mb-4"><h3 class="font-extrabold text-lg text-slate-800">{{ isMyProfile ? '我的资料' : '用户资料' }}</h3><button @click="showProfileModal=false" class="text-slate-400 hover:text-slate-600"><i class="ri-close-line text-xl"></i></button></div><div class="space-y-4 text-center"><div class="flex justify-center"><div class="relative w-24 h-24 group" :class="{'cursor-pointer': isMyProfile}" @click="isMyProfile && $refs.profileAvatarInput.click()"><img :src="viewingUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${viewingUser.username}`" class="w-full h-full rounded-full object-cover border-4 border-white shadow-lg"><div v-if="isMyProfile" class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"><i class="ri-camera-fill text-2xl"></i></div><input v-if="isMyProfile" type="file" ref="profileAvatarInput" hidden accept="image/*" @change="handleProfileAvatarChange"></div></div><div><h2 class="font-bold text-xl text-slate-800">{{ viewingUser.nickname }}</h2><p class="text-xs text-slate-400 font-mono mt-1">@{{ viewingUser.username }}</p></div><div v-if="!isMyProfile" class="space-y-3 text-left bg-slate-50 p-4 rounded-2xl"><div class="flex justify-between text-sm"><span class="text-slate-400">性别</span> <span class="font-bold">{{ genderMap[viewingUser.gender] || '保密' }}</span></div><div class="flex justify-between text-sm"><span class="text-slate-400">想找</span> <span class="font-bold">{{ targetMap[viewingUser.target] || '不限' }}</span></div><div v-if="viewingUser.qq" class="flex justify-between text-sm items-center"><span class="text-slate-400">QQ</span> <button @click="copyText(viewingUser.qq, 'QQ')" class="text-blue-500 font-bold text-xs bg-blue-50 px-2 py-0.5 rounded">复制</button></div><div v-if="viewingUser.wx" class="flex justify-between text-sm items-center"><span class="text-slate-400">微信</span> <button @click="copyText(viewingUser.wx, '微信')" class="text-green-500 font-bold text-xs bg-green-50 px-2 py-0.5 rounded">复制</button></div><button @click="openChat(viewingUser)" class="w-full bg-slate-800 text-white py-2.5 rounded-xl font-bold mt-2 shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"><i class="ri-message-3-line"></i> 发私信</button></div><div v-else class="space-y-4 text-left"><div><label class="text-xs font-bold text-slate-400 block mb-2">我的性别</label><div class="flex gap-2"><button @click="profileForm.gender='male'" class="flex-1 py-2 rounded-lg text-xs font-bold border transition-all" :class="profileForm.gender==='male'?'bg-blue-50 border-blue-200 text-blue-500':'bg-white border-slate-200 text-slate-400'">男生</button><button @click="profileForm.gender='female'" class="flex-1 py-2 rounded-lg text-xs font-bold border transition-all" :class="profileForm.gender==='female'?'bg-pink-50 border-pink-200 text-pink-500':'bg-white border-slate-200 text-slate-400'">女生</button></div></div><div><label class="text-xs font-bold text-slate-400 block mb-2">想找</label><div class="flex gap-2"><button @click="profileForm.target='male'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='male'?'bg-blue-50 border-blue-200 text-blue-500':'bg-white border-slate-200 text-slate-400'">找男生</button><button @click="profileForm.target='female'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='female'?'bg-pink-50 border-pink-200 text-pink-500':'bg-white border-slate-200 text-slate-400'">找女生</button><button @click="profileForm.target='all'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='all'?'bg-purple-50 border-purple-200 text-purple-500':'bg-white border-slate-200 text-slate-400'">都可以</button></div></div><div class="space-y-2"><div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100"><i class="ri-qq-fill text-blue-400"></i><input v-model="profileForm.qq" placeholder="QQ号 (选填)" class="bg-transparent text-xs w-full outline-none"></div><div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100"><i class="ri-wechat-fill text-green-400"></i><input v-model="profileForm.wx" placeholder="微信号 (选填)" class="bg-transparent text-xs w-full outline-none"></div></div><button @click="handleProfileUpdate" :disabled="isUpdatingProfile" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-all disabled:opacity-50">{{ isUpdatingProfile ? '保存中...' : '保存资料' }}</button><button @click="logout" class="w-full text-xs text-red-400 hover:text-red-600 py-2">退出登录</button></div></div></div></div>
@@ -273,6 +289,11 @@
             const chatTarget = ref({});
             const chatInput = ref('');
             const totalUnread = ref(0);
+            
+            // 滚动智能判断状态
+            const isUserAtBottom = ref(true);
+            const showNewMsgToast = ref(false);
+
             let chatPoller = null;
             let inboxPoller = null;
 
@@ -286,6 +307,126 @@
             const genderMap = { male:'男生', female:'女生', secret:'保密' };
             const targetMap = { male:'找男生', female:'找女生', all:'不限' };
 
+            // --- 核心：滚动与消息处理 ---
+            
+            const scrollToBottom = () => {
+                const el = app._instance.refs.chatContainer;
+                if(el) {
+                    el.scrollTop = el.scrollHeight;
+                    isUserAtBottom.value = true;
+                    showNewMsgToast.value = false;
+                }
+            };
+
+            const handleChatScroll = (e) => {
+                const el = e.target;
+                // 允许 50px 的误差
+                const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+                isUserAtBottom.value = isBottom;
+                if (isBottom) showNewMsgToast.value = false;
+            };
+
+            const openChat = async (target, chatId) => {
+                showProfileModal.value = false;
+                showInboxModal.value = false;
+                chatTarget.value = target;
+                serverMessages.value = [];
+                pendingMessages.value = [];
+                showNewMsgToast.value = false;
+                isUserAtBottom.value = true; // 初始设为在底部，以便首次加载自动滚动
+                showChatModal.value = true;
+                
+                if(chatId) {
+                    const chat = inboxList.value.find(c => c.chatId === chatId);
+                    if(chat && chat.unread > 0) { 
+                        totalUnread.value = Math.max(0, totalUnread.value - chat.unread); 
+                        chat.unread = 0; 
+                    }
+                    await fetch(`${API}?action=chat_read`, {method:'POST', body:JSON.stringify({user:user.value, chatId})});
+                }
+
+                // 首次加载，强制滚动到底部
+                await fetchChatHistory(true);
+                
+                if (chatPoller) clearInterval(chatPoller);
+                chatPoller = setInterval(() => fetchChatHistory(false), 3000);
+                
+                // 聚焦输入框
+                nextTick(() => {
+                    const inputEl = app._instance.refs.chatInputRef;
+                    if(inputEl) inputEl.focus();
+                });
+            };
+
+            const currentChatId = computed(() => {
+                if (!user.value || !chatTarget.value.username) return null;
+                return [user.value.username, chatTarget.value.username].sort().join('_');
+            });
+
+            const fetchChatHistory = async (isInitial = false) => {
+                if (!showChatModal.value) return;
+                const reqChatId = currentChatId.value; 
+                const res = await fetch(`${API}?action=chat_history&u1=${user.value.username}&u2=${chatTarget.value.username}`);
+                if (reqChatId !== currentChatId.value) return;
+
+                const msgs = await res.json();
+                
+                // 检测是否有新消息
+                const oldLastId = serverMessages.value.length ? serverMessages.value[serverMessages.value.length-1].id : 0;
+                const newLastId = msgs.length ? msgs[msgs.length-1].id : 0;
+                
+                serverMessages.value = msgs;
+                // 过滤掉已上服务器的本地消息
+                pendingMessages.value = pendingMessages.value.filter(p => 
+                    !msgs.some(s => s.content === p.content && s.sender === p.sender && Math.abs(p.timestamp - (s.timestamp?s.timestamp._seconds*1000:0)) < 10000)
+                );
+
+                // 滚动逻辑
+                if (isInitial) {
+                    nextTick(scrollToBottom);
+                } else if (newLastId !== oldLastId && newLastId !== 0) {
+                    // 有新消息
+                    if (isUserAtBottom.value) {
+                        nextTick(scrollToBottom);
+                    } else {
+                        showNewMsgToast.value = true;
+                    }
+                }
+            };
+
+            const mergedMessages = computed(() => {
+                const list = [...serverMessages.value, ...pendingMessages.value].sort((a,b) => {
+                    const ta = a.timestamp?._seconds ? a.timestamp._seconds * 1000 : a.timestamp;
+                    const tb = b.timestamp?._seconds ? b.timestamp._seconds * 1000 : b.timestamp;
+                    return ta - tb;
+                });
+                return list;
+            });
+
+            const sendChat = async () => {
+                if (!chatInput.value.trim()) return;
+                const txt = chatInput.value;
+                chatInput.value = '';
+                const now = Date.now();
+                const tempMsg = { id: now, sender: user.value.username, content: txt, timestamp: now, pending: true };
+                pendingMessages.value.push(tempMsg);
+                
+                // 发送消息时强制滚动到底部
+                nextTick(scrollToBottom);
+
+                try {
+                    await fetch(`${API}?action=chat_send`, {
+                        method: 'POST', 
+                        body: JSON.stringify({ user: user.value, toUsername: chatTarget.value.username, content: txt })
+                    });
+                    fetchChatHistory(false); // 立即拉取一次
+                } catch(e) {
+                    alert('发送失败');
+                    pendingMessages.value = pendingMessages.value.filter(m => m.id !== now);
+                }
+            };
+
+            // --- 其他逻辑保持不变 ---
             const checkUnread = async () => {
                 if (!user.value) return;
                 try {
@@ -311,86 +452,6 @@
                 if (u && !inboxPoller) inboxPoller = setInterval(checkUnread, 10000);
                 else if (!u && inboxPoller) { clearInterval(inboxPoller); inboxPoller = null; }
             });
-
-            const openInbox = async () => {
-                if (!user.value) return showAuthModal.value = true;
-                showInboxModal.value = true;
-                checkUnread();
-            };
-
-            const openChat = async (target, chatId) => {
-                showProfileModal.value = false;
-                showInboxModal.value = false;
-                chatTarget.value = target;
-                serverMessages.value = [];
-                pendingMessages.value = [];
-                showChatModal.value = true;
-                
-                if(chatId) {
-                    const chat = inboxList.value.find(c => c.chatId === chatId);
-                    if(chat && chat.unread > 0) { 
-                        totalUnread.value = Math.max(0, totalUnread.value - chat.unread); 
-                        chat.unread = 0; 
-                    }
-                    await fetch(`${API}?action=chat_read`, {method:'POST', body:JSON.stringify({user:user.value, chatId})});
-                }
-
-                fetchChatHistory();
-                if (chatPoller) clearInterval(chatPoller);
-                chatPoller = setInterval(fetchChatHistory, 3000);
-            };
-
-            const currentChatId = computed(() => {
-                if (!user.value || !chatTarget.value.username) return null;
-                return [user.value.username, chatTarget.value.username].sort().join('_');
-            });
-
-            const fetchChatHistory = async () => {
-                if (!showChatModal.value) return;
-                const reqChatId = currentChatId.value; 
-                const res = await fetch(`${API}?action=chat_history&u1=${user.value.username}&u2=${chatTarget.value.username}`);
-                if (reqChatId !== currentChatId.value) return;
-
-                const msgs = await res.json();
-                serverMessages.value = msgs;
-                // Filter out pending messages that are now on server (using timestamp proximity)
-                pendingMessages.value = pendingMessages.value.filter(p => 
-                    !msgs.some(s => s.content === p.content && s.sender === p.sender && Math.abs(p.timestamp - (s.timestamp?s.timestamp._seconds*1000:0)) < 10000)
-                );
-
-                nextTick(() => { const el = app._instance.refs.chatContainer; if(el) el.scrollTop = el.scrollHeight; });
-            };
-
-            const mergedMessages = computed(() => {
-                const list = [...serverMessages.value, ...pendingMessages.value].sort((a,b) => {
-                    const ta = a.timestamp?._seconds ? a.timestamp._seconds * 1000 : a.timestamp;
-                    const tb = b.timestamp?._seconds ? b.timestamp._seconds * 1000 : b.timestamp;
-                    return ta - tb;
-                });
-                return list;
-            });
-
-            const sendChat = async () => {
-                if (!chatInput.value.trim()) return;
-                const txt = chatInput.value;
-                chatInput.value = '';
-                const now = Date.now();
-                const tempMsg = { id: now, sender: user.value.username, content: txt, timestamp: now, pending: true };
-                pendingMessages.value.push(tempMsg);
-                
-                nextTick(() => { const el = app._instance.refs.chatContainer; if(el) el.scrollTop = el.scrollHeight; });
-
-                try {
-                    await fetch(`${API}?action=chat_send`, {
-                        method: 'POST', 
-                        body: JSON.stringify({ user: user.value, toUsername: chatTarget.value.username, content: txt })
-                    });
-                    fetchChatHistory();
-                } catch(e) {
-                    alert('发送失败');
-                    pendingMessages.value = pendingMessages.value.filter(m => m.id !== now);
-                }
-            };
 
             watch(showChatModal, (val) => { if (!val && chatPoller) clearInterval(chatPoller); });
 
@@ -447,7 +508,8 @@
                 changeFilter, logout, checkAuthAndPost, removeImage, previewImage, scrollToTop,
                 startLongPress, endLongPress, triggerReply,
                 handleProfileAvatarChange, handleProfileUpdate, copyText, handleAvatarClick,
-                openInbox, openChat, sendChat, deleteChatSession
+                openInbox, openChat, sendChat, deleteChatSession,
+                handleChatScroll, scrollToBottom, showNewMsgToast // 导出新方法
             };
         }
     }).mount('#app');
