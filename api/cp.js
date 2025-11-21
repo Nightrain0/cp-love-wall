@@ -24,6 +24,13 @@ export default async function handler(req, res) {
     const db = getDb();
     if (!db) return res.status(500).json({ error: 'DB Error' });
 
+    // ★ 新增：后端身份校验辅助函数
+    const validateUser = async (username) => {
+        if (!username) return false;
+        const doc = await db.collection('cp_users').doc(username).get();
+        return doc.exists;
+    };
+
     try {
         const { action } = req.query;
         const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
@@ -40,6 +47,12 @@ export default async function handler(req, res) {
         if (req.method === 'POST' && action === 'chat_send') {
             const { user, toUsername, content } = body;
             if (!user || !content) return res.status(400).json({ error: '参数错误' });
+            
+            // ★ 修复：发信前校验用户是否存在
+            if (!(await validateUser(user.username))) {
+                return res.status(401).json({ error: '账号异常，请重新登录' });
+            }
+
             const chatId = getChatId(user.username, toUsername);
             const chatRef = db.collection('cp_chats').doc(chatId);
             const now = admin.firestore.FieldValue.serverTimestamp();
@@ -180,6 +193,7 @@ export default async function handler(req, res) {
 
         if (req.method === 'POST' && action === 'update_profile') {
             if (body.user.username !== body.username) return res.status(403).json({ error: '非法' });
+            // update 会自动检查文档是否存在，如果不存在会报错，所以这里隐式包含了检查
             await db.collection('cp_users').doc(body.username).update({
                 nickname: body.nickname, avatar: body.avatar, gender: body.gender, target: body.target, qq: body.qq, wx: body.wx
             });
@@ -203,7 +217,12 @@ export default async function handler(req, res) {
 
         if (req.method === 'POST' && action === 'create_post') {
             if (!body.user) return res.status(400).json({ error: '用户未登录' });
-            // ★ 终极修复：给所有字段增加默认值，防止 undefined 错误
+            
+            // ★ 修复：发布前强制去数据库查验该用户是否存在
+            if (!(await validateUser(body.user.username))) {
+                return res.status(401).json({ error: '账号不存在或已被删除' });
+            }
+
             await db.collection('cp_posts').add({
                 nickname: body.user.nickname || '匿名', 
                 username: body.user.username, 
@@ -212,8 +231,8 @@ export default async function handler(req, res) {
                 target: body.user.target || 'all',    
                 qq: body.user.qq || '',
                 wx: body.user.wx || '',
-                game: body.game || '其他', // 防止 game 为空
-                desc: body.content || '',  // 防止 content 为空
+                game: body.game || '其他', 
+                desc: body.content || '', 
                 requirement: body.requirement || '', 
                 images: body.images || [],
                 likes: 0, likedIds: [], commentsCount: 0, timestamp: admin.firestore.FieldValue.serverTimestamp()
@@ -240,6 +259,11 @@ export default async function handler(req, res) {
         }
 
         if (req.method === 'POST' && action === 'add_comment') {
+            // ★ 修复：评论前校验
+            if (!(await validateUser(body.user.username))) {
+                return res.status(401).json({ error: '账号异常' });
+            }
+
             const ref = db.collection('cp_posts').doc(body.postId);
             await db.runTransaction(async t => {
                 t.set(ref.collection('comments').doc(), {
