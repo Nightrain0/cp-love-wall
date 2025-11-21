@@ -104,7 +104,7 @@
                                 <div class="text-[10px] text-slate-400">{{ post.timeStr }}</div>
                             </div>
                         </div>
-                        <!-- 修改点：删除按钮权限放宽 (管理员 或 作者本人) -->
+                        <!-- 只有 admin 或 作者本人显示删除 -->
                         <button v-if="user && (user.isAdmin || user.username === post.username)" @click="deletePost(post.id)" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">
                             <i class="ri-delete-bin-line"></i>
                         </button>
@@ -132,7 +132,7 @@
                                 <div v-for="cmt in post.commentList" :key="cmt.id" class="flex gap-2 text-xs group/cmt">
                                     <span class="font-bold text-slate-700 shrink-0">{{ cmt.nickname }}:</span>
                                     <span class="text-slate-600 break-all">{{ cmt.content }}</span>
-                                    <!-- 修改点：删除评论权限放宽 (管理员 或 评论作者) -->
+                                    <!-- 只有 admin 或 作者本人显示删除 -->
                                     <button v-if="user && (user.isAdmin || user.username === cmt.username)" @click="deleteComment(post, cmt.id)" class="ml-auto text-slate-300 hover:text-red-500 opacity-0 group-hover/cmt:opacity-100"><i class="ri-close-line"></i></button>
                                 </div>
                             </div>
@@ -164,7 +164,7 @@
                     </div>
                     <input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarUpload">
                 </div>
-                <input v-model="authForm.username" placeholder="账号 (≥8位)" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs">
+                <input v-model="authForm.username" :placeholder="authMode==='register' && authForm.username!=='admin' ? '账号 (≥8位)' : '账号'" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs">
                 <input v-model="authForm.password" type="password" placeholder="密码 (≥6位)" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs">
                 <input v-if="authMode==='register'" v-model="authForm.nickname" placeholder="昵称" class="w-full bg-slate-50 rounded-lg px-3 py-2 text-xs">
                 <button @click="handleAuth" :disabled="isAuthing" class="w-full bg-slate-900 text-white py-2 rounded-lg text-xs font-bold">{{ isAuthing?'处理中...':'确定' }}</button>
@@ -306,43 +306,23 @@
                 p.liking = false;
             };
 
-            // ★ 修改：智能画质压缩函数
             const compress = (file) => new Promise(resolve => {
                 const r = new FileReader();
                 r.onload = e => {
                     const img = new Image();
                     img.onload = () => {
                         const cvs = document.createElement('canvas');
-                        let w = img.width, h = img.height;
-                        
-                        // 1. 优先尝试高分辨率 (1920px)
-                        const MAX_WIDTH = 1920; 
-                        if (w > MAX_WIDTH) { h *= MAX_WIDTH/w; w = MAX_WIDTH; }
-                        
-                        cvs.width = w; cvs.height = h;
+                        let w=img.width, h=img.height;
+                        const MAX = 1920; 
+                        if(w>MAX){ h*=MAX/w; w=MAX; }
+                        cvs.width=w; cvs.height=h;
                         const ctx = cvs.getContext('2d');
-                        ctx.drawImage(img, 0, 0, w, h);
+                        ctx.drawImage(img,0,0,w,h);
                         
-                        // 2. 初始尝试高质量 (0.9)
-                        let quality = 0.9;
-                        let dataUrl = cvs.toDataURL('image/jpeg', quality);
-                        
-                        // 3. 循环检测：如果单张图超过 300KB (约为 400000 base64长度)，则降低画质重试
-                        // 目标：3张图加起来绝对不超过 1MB (约 1350000 长度)
-                        const MAX_BASE64_LEN = 350000; 
-                        while (dataUrl.length > MAX_BASE64_LEN && quality > 0.3) {
-                            quality -= 0.1;
-                            dataUrl = cvs.toDataURL('image/jpeg', quality);
-                        }
-                        
-                        // 如果还大，强制缩小尺寸再压一次
-                        if (dataUrl.length > MAX_BASE64_LEN) {
-                            w *= 0.7; h *= 0.7;
-                            cvs.width = w; cvs.height = h;
-                            ctx.drawImage(img, 0, 0, w, h);
-                            dataUrl = cvs.toDataURL('image/jpeg', 0.6);
-                        }
-
+                        let q = 0.9, dataUrl = cvs.toDataURL('image/jpeg', q);
+                        const LIMIT = 350000; 
+                        while(dataUrl.length > LIMIT && q > 0.3) { q-=0.1; dataUrl = cvs.toDataURL('image/jpeg', q); }
+                        if(dataUrl.length > LIMIT) { w*=0.7; h*=0.7; cvs.width=w; cvs.height=h; ctx.drawImage(img,0,0,w,h); dataUrl=cvs.toDataURL('image/jpeg', 0.6); }
                         resolve(dataUrl);
                     };
                     img.src = e.target.result;
@@ -358,6 +338,11 @@
 
             const handleAuth = async () => {
                 if(!authForm.value.username) return alert('请输入账号');
+                // ★ 修改：前端放宽对 admin 的校验
+                if (authMode.value === 'register' && authForm.value.username !== 'admin') {
+                    if(authForm.value.username.length < 8) return alert('账号至少8位');
+                }
+                
                 isAuthing.value = true;
                 try {
                     const res = await fetch(`${API}?action=${authMode.value}`, {method:'POST', body:JSON.stringify(authForm.value)});
@@ -374,7 +359,7 @@
                 try {
                     const res = await fetch(`${API}?action=create_post`, {method:'POST', body:JSON.stringify({user:user.value, ...postForm.value})});
                     if(res.ok) { showPostModal.value = false; postForm.value = {content:'', game:'王者荣耀', requirement:'', images:[]}; fetchPosts(); }
-                    else alert('发布失败，可能图片太大？');
+                    else alert('发布失败');
                 } catch(e){ alert('网络错误'); }
                 submitting.value = false;
             };
@@ -396,8 +381,7 @@
                 if(!p.newCommentInput) return;
                 const txt = p.newCommentInput; p.newCommentInput='';
                 if(!p.commentList) p.commentList=[];
-                const tempId = Date.now().toString(); // 临时ID
-                p.commentList.push({id:tempId, nickname:user.value.nickname, username:user.value.username, content:txt}); // 记得带上username
+                p.commentList.push({id:Date.now(), nickname:user.value.nickname, username:user.value.username, content:txt});
                 p.commentsCount = (p.commentsCount||0)+1;
                 await fetch(`${API}?action=add_comment`, {method:'POST', body:JSON.stringify({postId:p.id, user:user.value, content:txt})});
             };
