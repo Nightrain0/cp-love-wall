@@ -2,155 +2,348 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>省流版留言板</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CPDD 扩列小站</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Vue 3 (为了写交互逻辑方便，比纯原生JS更易维护) -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- 图标库 -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px; color: #1f2937; }
-        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; }
-        .header { background: #10b981; color: white; padding: 20px; text-align: center; }
-        .header h1 { margin: 0; font-size: 1.25rem; }
+        /* 自定义一些动画和滚动条 */
+        body { background-color: #fdf2f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        .slide-up-enter-active { transition: all 0.3s ease-out; }
+        .slide-up-enter-from { transform: translateY(20px); opacity: 0; }
         
-        .input-area { padding: 20px; border-bottom: 1px solid #e5e7eb; display: flex; gap: 10px; }
-        input { flex: 1; padding: 10px 15px; border: 1px solid #d1d5db; border-radius: 6px; outline: none; transition: border-color 0.2s; }
-        input:focus { border-color: #10b981; ring: 2px solid #10b981; }
-        button { background: #10b981; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 500; transition: background 0.2s; white-space: nowrap; }
-        button:hover { background: #059669; }
-        button:disabled { background: #9ca3af; cursor: not-allowed; }
-
-        .msg-list { padding: 0; margin: 0; list-style: none; height: 400px; overflow-y: auto; }
-        .msg-item { padding: 15px 20px; border-bottom: 1px solid #f3f4f6; animation: fadeIn 0.5s ease; background: #fff; transition: background 0.5s; }
-        .msg-item.new { background: #ecfdf5; } /* 新消息高亮一下 */
-        .msg-content { font-size: 1rem; margin-bottom: 4px; word-break: break-all; }
-        .msg-time { font-size: 0.75rem; color: #9ca3af; }
-        
-        .status-bar { text-align: center; padding: 8px; font-size: 0.75rem; color: #6b7280; background: #f9fafb; border-top: 1px solid #e5e7eb; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        /* 游戏标签颜色 */
+        .tag-wzry { background: #fef3c7; color: #d97706; }
+        .tag-ys { background: #e0e7ff; color: #4f46e5; }
+        .tag-lol { background: #dbeafe; color: #2563eb; }
+        .tag-pubg { background: #dcfce7; color: #16a34a; }
+        .tag-other { background: #f3f4f6; color: #6b7280; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="header">
-        <h1>🌱 绿色省流版留言板</h1>
-    </div>
+<div id="app" class="max-w-3xl mx-auto min-h-screen pb-20 relative">
     
-    <div class="input-area">
-        <input type="text" id="msgInput" placeholder="说点什么..." autocomplete="off">
-        <button id="sendBtn">发送</button>
+    <!-- 顶部导航 -->
+    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-pink-100 px-4 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <div class="bg-gradient-to-tr from-pink-400 to-purple-400 w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-lg rotate-3">
+                <i class="ri-gamepad-fill"></i>
+            </div>
+            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-purple-500">
+                CPDD扩列
+            </h1>
+        </div>
+        <button @click="showPostModal = true" class="bg-pink-500 active:scale-95 transition-transform text-white px-4 py-1.5 rounded-full text-sm font-bold shadow-md shadow-pink-200 flex items-center gap-1">
+            <i class="ri-add-line"></i> 发布
+        </button>
+    </header>
+
+    <!-- 筛选区域 -->
+    <div class="px-4 py-4 sticky top-16 z-30 bg-[#fdf2f8]/95 backdrop-blur-sm">
+        <div class="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
+            <button 
+                v-for="g in games" :key="g"
+                @click="filterGame = g"
+                class="whitespace-nowrap px-3 py-1 rounded-full text-xs font-bold transition-all border"
+                :class="filterGame === g ? 'bg-pink-500 text-white border-pink-500 shadow-md' : 'bg-white text-slate-500 border-slate-200'"
+            >
+                {{ g }}
+            </button>
+        </div>
     </div>
 
-    <ul class="msg-list" id="msgList">
-        <li style="text-align:center; padding:20px; color:#999;" id="loadingTip">连接云端中...</li>
-    </ul>
+    <!-- 列表区域 -->
+    <main class="px-4 space-y-4">
+        <div v-if="loading" class="text-center py-20 text-pink-300">
+            <i class="ri-loader-4-line text-3xl animate-spin"></i>
+            <p class="text-sm mt-2">正在召唤队友...</p>
+        </div>
 
-    <div class="status-bar" id="statusBar">
-        准备就绪 (每5秒同步一次)
-    </div>
+        <div v-else-if="filteredPosts.length === 0" class="text-center py-20 text-slate-400">
+            <i class="ri-ghost-line text-4xl mb-2"></i>
+            <p>还没有这个游戏的帖子哦~</p>
+        </div>
+
+        <transition-group name="slide-up">
+            <div v-for="post in filteredPosts" :key="post.id" class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                <!-- 头部信息 -->
+                <div class="flex justify-between items-start mb-3">
+                    <div class="flex gap-3">
+                        <!-- 头像 (如果有图片显示图片，没有显示默认) -->
+                        <div class="w-12 h-12 rounded-full bg-slate-100 flex-shrink-0 overflow-hidden border border-slate-200">
+                            <img v-if="post.imageBase64" :src="post.imageBase64" class="w-full h-full object-cover">
+                            <div v-else class="w-full h-full flex items-center justify-center text-slate-300">
+                                <i class="ri-user-smile-line text-xl"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-800">{{ post.nickname }}</span>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded-full" 
+                                      :class="post.gender === '小姐姐' ? 'bg-pink-100 text-pink-500' : 'bg-blue-100 text-blue-500'">
+                                    {{ post.gender }}
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                                    {{ post.game }}
+                                </span>
+                                <span class="text-xs text-slate-400">{{ post.timeStr }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 内容 -->
+                <div class="space-y-2 mb-4">
+                    <div class="bg-slate-50 p-2.5 rounded-xl text-sm text-slate-600 leading-relaxed">
+                        <span class="font-bold text-slate-400 mr-1">#关于我</span>
+                        {{ post.desc }}
+                    </div>
+                    <div v-if="post.requirement" class="bg-pink-50/50 p-2.5 rounded-xl text-sm text-slate-600 leading-relaxed">
+                        <span class="font-bold text-pink-300 mr-1">#找CP</span>
+                        {{ post.requirement }}
+                    </div>
+                </div>
+
+                <!-- 底部操作 -->
+                <div class="flex items-center justify-between pt-2 border-t border-slate-50">
+                    <button @click="likePost(post)" class="flex items-center gap-1 text-sm text-slate-400 hover:text-pink-500 transition-colors" :class="{'text-pink-500': post.likedLocal}">
+                        <i :class="post.likedLocal ? 'ri-heart-fill' : 'ri-heart-line'"></i>
+                        <span>{{ post.likes + (post.likedLocal ? 1 : 0) }}</span>
+                    </button>
+                    <button class="bg-slate-800 text-white text-xs px-3 py-1.5 rounded-lg font-bold hover:bg-slate-700">
+                        <i class="ri-chat-1-line mr-1"></i> DDTA
+                    </button>
+                </div>
+            </div>
+        </transition-group>
+    </main>
+
+    <!-- 发布弹窗 -->
+    <transition name="fade">
+        <div v-if="showPostModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4">
+            <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl h-[85vh] sm:h-auto flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-lg">✨ 发布扩列</h3>
+                    <button @click="showPostModal = false" class="text-slate-400 hover:text-slate-600 text-xl">
+                        <i class="ri-close-circle-fill"></i>
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto space-y-4 pr-1">
+                    <!-- 头像上传 -->
+                    <div class="flex justify-center">
+                        <div @click="$refs.fileInput.click()" class="w-20 h-20 rounded-full bg-slate-50 border-2 border-dashed border-pink-200 flex flex-col items-center justify-center text-pink-300 cursor-pointer overflow-hidden relative">
+                            <img v-if="form.imageBase64" :src="form.imageBase64" class="w-full h-full object-cover">
+                            <div v-else class="text-center">
+                                <i class="ri-camera-fill text-xl"></i>
+                                <span class="text-[10px] block">传头像</span>
+                            </div>
+                            <input type="file" ref="fileInput" @change="handleImageUpload" class="hidden" accept="image/*">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 mb-1 block">昵称</label>
+                            <input v-model="form.nickname" class="w-full bg-slate-50 border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-200 outline-none" placeholder="你的名字">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 mb-1 block">性别</label>
+                            <select v-model="form.gender" class="w-full bg-slate-50 border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-200 outline-none">
+                                <option>小姐姐</option>
+                                <option>小哥哥</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">常玩游戏</label>
+                        <select v-model="form.game" class="w-full bg-slate-50 border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-200 outline-none">
+                            <option v-for="g in games.slice(1)" :key="g">{{ g }}</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">关于我</label>
+                        <textarea v-model="form.desc" rows="3" class="w-full bg-slate-50 border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-200 outline-none resize-none" placeholder="比如：人皮话多，不压力..."></textarea>
+                    </div>
+                    
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">找什么样的</label>
+                        <textarea v-model="form.requirement" rows="2" class="w-full bg-slate-50 border-none rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-200 outline-none resize-none" placeholder="比如：野王dd..."></textarea>
+                    </div>
+                </div>
+
+                <div class="pt-4 mt-2 border-t border-slate-100">
+                    <button @click="submitPost" :disabled="submitting" class="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-pink-200 active:scale-95 transition-transform disabled:opacity-50">
+                        {{ submitting ? '发送中...' : '发射信号 📡' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </transition>
+
 </div>
 
 <script>
-    const API_URL = '/api/chat';
-    const input = document.getElementById('msgInput');
-    const btn = document.getElementById('sendBtn');
-    const list = document.getElementById('msgList');
-    const status = document.getElementById('statusBar');
+    const { createApp, ref, computed, onMounted } = Vue;
 
-    // ★ 核心变量：记录我们手里最新的消息时间
-    let lastTimestamp = 0; 
-    // 本地缓存所有消息，用于渲染
-    let allMessages = [];
-
-    // 1. 智能加载数据
-    async function syncMessages() {
-        try {
-            // 告诉服务器：我只要这个时间之后的！
-            const res = await fetch(`${API_URL}?after=${lastTimestamp}`);
-            if (!res.ok) throw new Error("API Error");
-            const newMessages = await res.json();
+    createApp({
+        setup() {
+            // API 地址：指向你的 Vercel 函数
+            const API_URL = '/api/cp'; 
             
-            // 如果没有新消息，直接结束，不重绘页面 (0 成本)
-            if (newMessages.length === 0) {
-                // status.innerText = "暂无新消息..."; 
-                return;
-            }
-
-            // 如果有新消息
-            // 1. 更新最新的时间戳 (取新消息里最大的那个)
-            const maxTime = Math.max(...newMessages.map(m => m.timestamp));
-            if (maxTime > lastTimestamp) {
-                lastTimestamp = maxTime;
-            }
-
-            // 2. 合并数据 (把新的放在最前面)
-            // 后端返回的是“新到旧”，所以直接拼
-            allMessages = [...newMessages, ...allMessages];
+            const loading = ref(true);
+            const showPostModal = ref(false);
+            const submitting = ref(false);
+            const posts = ref([]);
             
-            // 3. 去重 (防止极端情况网络延迟导致重复)
-            const uniqueMap = new Map();
-            allMessages.forEach(item => uniqueMap.set(item.id, item));
-            allMessages = Array.from(uniqueMap.values()).sort((a,b) => b.timestamp - a.timestamp);
+            const games = ['全部', '王者荣耀', '原神', '英雄联盟', '和平精英', '蛋仔派对', '无畏契约', '其他'];
+            const filterGame = ref('全部');
 
-            render(newMessages.map(m => m.id)); // 传入新消息ID用于高亮
-            status.innerText = `更新于: ${new Date().toLocaleTimeString()} (新增 ${newMessages.length} 条)`;
-            
-        } catch (e) {
-            console.warn("同步失败:", e);
-        }
-    }
-
-    // 2. 渲染界面 (只重绘列表)
-    function render(newMessageIds = []) {
-        if (allMessages.length === 0) {
-            list.innerHTML = '<li style="text-align:center; padding:20px; color:#999;">暂无留言</li>';
-            return;
-        }
-        
-        list.innerHTML = allMessages.map(msg => {
-            const isNew = newMessageIds.includes(msg.id) ? 'new' : '';
-            return `
-            <li class="msg-item ${isNew}">
-                <div class="msg-content">${escapeHtml(msg.content)}</div>
-                <div class="msg-time">${msg.timeStr}</div>
-            </li>
-        `}).join('');
-    }
-
-    // 3. 发送数据
-    btn.addEventListener('click', async () => {
-        const text = input.value.trim();
-        if (!text) return;
-
-        const originalText = btn.innerText;
-        btn.innerText = "发送中...";
-        btn.disabled = true;
-
-        try {
-            const res = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content: text })
+            const form = ref({
+                nickname: '',
+                gender: '小姐姐',
+                game: '王者荣耀',
+                desc: '',
+                requirement: '',
+                imageBase64: ''
             });
-            
-            if (res.ok) {
-                input.value = '';
-                syncMessages(); // 发送成功后立刻触发一次同步
-            }
-        } catch (e) {
-            alert("发送失败");
-        } finally {
-            btn.innerText = originalText;
-            btn.disabled = false;
+
+            // 获取数据
+            const fetchPosts = async () => {
+                try {
+                    const res = await fetch(API_URL);
+                    if (res.ok) {
+                        posts.value = await res.json();
+                    }
+                } catch (e) {
+                    console.error("Fetch error", e);
+                } finally {
+                    loading.value = false;
+                }
+            };
+
+            // 计算属性：筛选逻辑
+            const filteredPosts = computed(() => {
+                if (filterGame.value === '全部') return posts.value;
+                return posts.value.filter(p => p.game === filterGame.value);
+            });
+
+            // 图片处理：压缩 + 转Base64
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // 使用 Canvas 压缩图片
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        // 限制最大宽高，减小体积
+                        const MAX_SIZE = 300; 
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height) {
+                            if (width > MAX_SIZE) {
+                                height *= MAX_SIZE / width;
+                                width = MAX_SIZE;
+                            }
+                        } else {
+                            if (height > MAX_SIZE) {
+                                width *= MAX_SIZE / height;
+                                height = MAX_SIZE;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        // 压缩质量 0.6
+                        form.value.imageBase64 = canvas.toDataURL('image/jpeg', 0.6);
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            };
+
+            // 提交发布
+            const submitPost = async () => {
+                if (!form.value.nickname || !form.value.desc) {
+                    alert("昵称和介绍记得填哦~");
+                    return;
+                }
+                
+                submitting.value = true;
+                try {
+                    const res = await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify(form.value)
+                    });
+                    
+                    if (res.ok) {
+                        showPostModal.value = false;
+                        // 重置表单
+                        form.value.desc = '';
+                        form.value.requirement = '';
+                        form.value.imageBase64 = '';
+                        // 刷新列表
+                        await fetchPosts();
+                    } else {
+                        alert("发布失败，可能是图片太大了？");
+                    }
+                } catch (e) {
+                    alert("网络错误");
+                } finally {
+                    submitting.value = false;
+                }
+            };
+
+            // 点赞逻辑
+            const likePost = async (post) => {
+                if (post.likedLocal) return;
+                
+                // 乐观更新 UI
+                post.likedLocal = true;
+                
+                try {
+                    await fetch(API_URL, {
+                        method: 'PUT',
+                        body: JSON.stringify({ id: post.id })
+                    });
+                } catch(e) {
+                    console.error("Like failed");
+                }
+            };
+
+            onMounted(() => {
+                fetchPosts();
+            });
+
+            return {
+                loading, posts, filteredPosts, games, filterGame,
+                showPostModal, form, submitting,
+                handleImageUpload, submitPost, likePost
+            };
         }
-    });
-
-    function escapeHtml(text) {
-        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-
-    // 启动：每 5 秒同步一次
-    // 5秒 x 1次读取 = 就算挂机一整天也只消耗 17280 次读取 (远低于 50000 额度)
-    syncMessages();
-    setInterval(syncMessages, 5000);
+    }).mount('#app');
 </script>
 
 </body>
