@@ -59,11 +59,11 @@
 
         /* 卡片样式：更软萌 */
         .app-card { 
-            background: rgba(255, 255, 255, 0.85); 
+            background: rgba(255, 255, 255, 0.9); /* 增加不透明度，减少背景干扰 */
             backdrop-filter: blur(10px);
             border-radius: 24px; 
             box-shadow: 0 4px 15px rgba(0,0,0,0.03), inset 0 0 0 1px rgba(255,255,255,0.5); 
-            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); 
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); 
             border: 1px solid rgba(255, 255, 255, 0.6);
             overflow: hidden; 
             margin-bottom: 20px; 
@@ -72,8 +72,8 @@
         
         @media (min-width: 768px) { 
             .app-card:hover { 
-                transform: translateY(-5px) scale(1.01); 
-                box-shadow: 0 20px 40px -10px rgba(255, 154, 158, 0.3); 
+                transform: translateY(-4px); /* 移除 scale，防止字体模糊，只保留上浮 */
+                box-shadow: 0 15px 30px -5px rgba(255, 154, 158, 0.25); 
                 border-color: #ffeff1;
             } 
         }
@@ -173,15 +173,18 @@
                 <span class="text-[10px] font-bold text-pink-300 tracking-widest">扩列异世界</span>
             </div>
         </div>
-        <div v-if="user" class="flex items-center gap-5">
+        <div v-if="user" class="flex items-center gap-3">
+            <!-- 优化：常驻的私信按钮，不再只是个图标 -->
             <div class="relative cursor-pointer group transition-transform active:scale-90" @click="openInbox">
-                <div class="relative">
-                     <i class="ri-mail-heart-fill text-2xl text-purple-300 group-hover:text-purple-400 transition-colors"></i>
-                     <div v-if="totalUnread > 0" class="absolute -top-2 -right-2 min-w-[18px] h-[18px] bg-red-400 rounded-full text-[10px] text-white flex items-center justify-center border-2 border-white font-bold shadow-sm">
-                        {{ totalUnread > 99 ? '99+' : totalUnread }}
-                    </div>
+                <div class="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center shadow-sm hover:bg-pink-50 hover:border-pink-100 transition-colors">
+                     <i class="ri-mail-heart-line text-xl text-slate-600 group-hover:text-pink-500 transition-colors"></i>
+                </div>
+                <!-- 红点只在有消息时显示，但按钮本身常驻 -->
+                <div v-if="totalUnread > 0" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center border-2 border-white font-bold shadow-sm animate-bounce">
+                    {{ totalUnread > 99 ? '99+' : totalUnread }}
                 </div>
             </div>
+
             <div class="relative cursor-pointer group" @click="handleAvatarClick(user.username)">
                 <div class="p-0.5 rounded-full bg-gradient-to-tr from-pink-300 to-blue-300 group-hover:rotate-12 transition-transform">
                     <img :src="user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`" class="w-9 h-9 rounded-full border-2 border-white object-cover bg-white">
