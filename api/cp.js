@@ -2,6 +2,7 @@ import admin from 'firebase-admin';
 
 // --- 初始化逻辑 ---
 if (!admin.apps.length) {
+    // 增加容错，防止环境变量缺失导致直接 crash
     if (process.env.FIREBASE_CREDENTIALS) {
         try {
             const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
@@ -16,7 +17,13 @@ if (!admin.apps.length) {
     }
 }
 
-const db = admin.firestore();
+// 安全获取 db 实例
+let db;
+try {
+    db = admin.firestore();
+} catch (e) {
+    console.error("Firestore 初始化失败", e);
+}
 
 // 简单的密码哈希
 const hashPassword = (pwd) => {
@@ -39,6 +46,11 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') {
         res.status(200).end();
         return;
+    }
+
+    // ★ 关键修复：如果 db 未初始化（如环境变量缺失），直接返回 500 JSON，避免 crash
+    if (!db) {
+        return res.status(500).json({ error: 'Database connection failed. Check server logs.' });
     }
 
     try {
@@ -95,36 +107,38 @@ export default async function handler(req, res) {
         // ==========================================
 
         if (req.method === 'GET' && !action) {
-            const snapshot = await db.collection('cp_posts')
-                .orderBy('timestamp', 'desc')
-                .limit(50)
-                .get();
-            
-            const posts = [];
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                // 转换时间
-                let timeStr = "刚刚";
-                if (data.timestamp && data.timestamp._seconds) {
-                    const date = new Date(data.timestamp._seconds * 1000);
-                    // 简单的日期格式化
-                    const now = new Date();
-                    if (now.toDateString() === date.toDateString()) {
-                        timeStr = date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
-                    } else {
-                        timeStr = date.toLocaleDateString('zh-CN', {month: '2-digit', day:'2-digit'});
-                    }
-                }
+            try {
+                const snapshot = await db.collection('cp_posts')
+                    .orderBy('timestamp', 'desc')
+                    .limit(50)
+                    .get();
                 
-                posts.push({ 
-                    id: doc.id, 
-                    ...data, 
-                    timeStr,
-                    // 返回 likedIds 供前端判断 (注意数据量)
-                    likedIds: data.likedIds || [] 
+                const posts = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    let timeStr = "刚刚";
+                    if (data.timestamp && data.timestamp._seconds) {
+                        const date = new Date(data.timestamp._seconds * 1000);
+                        const now = new Date();
+                        if (now.toDateString() === date.toDateString()) {
+                            timeStr = date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
+                        } else {
+                            timeStr = date.toLocaleDateString('zh-CN', {month: '2-digit', day:'2-digit'});
+                        }
+                    }
+                    
+                    posts.push({ 
+                        id: doc.id, 
+                        ...data, 
+                        timeStr,
+                        likedIds: data.likedIds || [] 
+                    });
                 });
-            });
-            return res.json(posts);
+                return res.json(posts); // 确保返回数组
+            } catch (err) {
+                console.error("Fetch posts failed", err);
+                return res.status(500).json({ error: 'Failed to fetch posts' });
+            }
         }
 
         if (req.method === 'POST' && action === 'create_post') {
@@ -161,7 +175,6 @@ export default async function handler(req, res) {
         // 3. 互动模块
         // ==========================================
 
-        // ★ 核心修复：严格的 Toggle 逻辑
         if (req.method === 'POST' && action === 'like') {
             const { id, user } = body;
             const docRef = db.collection('cp_posts').doc(id);
@@ -178,12 +191,9 @@ export default async function handler(req, res) {
                 let newLikes = data.likes || 0;
 
                 if (index > -1) {
-                    // 已点赞 -> 取消
                     likedIds.splice(index, 1);
                     newLikes = Math.max(0, newLikes - 1);
                 } else {
-                    // 未点赞 -> 添加
-                    // 防止数组无限膨胀，保留最近 2000 个赞的人
                     if (likedIds.length > 2000) likedIds.shift(); 
                     likedIds.push(identifier);
                     newLikes = newLikes + 1;
