@@ -174,13 +174,13 @@
             </div>
         </div>
         <div v-if="user" class="flex items-center gap-3">
-            <!-- 优化：常驻的私信按钮，不再只是个图标 -->
+            <!-- 优化：更醒目的私信入口，使用渐变色填充 -->
             <div class="relative cursor-pointer group transition-transform active:scale-90" @click="openInbox">
-                <div class="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center shadow-sm hover:bg-pink-50 hover:border-pink-100 transition-colors">
-                     <i class="ri-mail-heart-line text-xl text-slate-600 group-hover:text-pink-500 transition-colors"></i>
+                <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-fuchsia-200 hover:shadow-xl hover:-translate-y-0.5 transition-all border-2 border-white/50">
+                     <i class="ri-chat-smile-3-fill text-xl text-white"></i>
                 </div>
                 <!-- 红点只在有消息时显示，但按钮本身常驻 -->
-                <div v-if="totalUnread > 0" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center border-2 border-white font-bold shadow-sm animate-bounce">
+                <div v-if="totalUnread > 0" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-rose-500 rounded-full text-[10px] text-white flex items-center justify-center border-2 border-white font-bold shadow-sm animate-bounce">
                     {{ totalUnread > 99 ? '99+' : totalUnread }}
                 </div>
             </div>
