@@ -139,7 +139,6 @@ export default async function handler(req, res) {
 
         // --- 鉴权 & 帖子 ---
         if (action === 'register') {
-            // ★ 更新：注册时接收详细信息
             const { username, password, nickname, avatar, gender, target, qq, wx } = body;
             if (username !== 'admin' && (!username || username.length < 8)) return res.status(400).json({ error: '账号需≥8位' });
             if (!password || password.length < 6) return res.status(400).json({ error: '密码需≥6位' });
@@ -151,8 +150,8 @@ export default async function handler(req, res) {
                 nickname, 
                 avatar: avatar||'', 
                 isAdmin: username==='admin', 
-                gender: gender || 'secret', // 默认值
-                target: target || 'all',    // 默认值
+                gender: gender || 'secret', 
+                target: target || 'all',    
                 qq: qq || '',
                 wx: wx || '',
                 createdAt: new Date() 
@@ -203,17 +202,18 @@ export default async function handler(req, res) {
         }
 
         if (req.method === 'POST' && action === 'create_post') {
-            // ★ 修复：使用 || 操作符提供默认值，防止 undefined 报错
+            if (!body.user) return res.status(400).json({ error: '用户未登录' });
+            // ★ 终极修复：给所有字段增加默认值，防止 undefined 错误
             await db.collection('cp_posts').add({
                 nickname: body.user.nickname || '匿名', 
                 username: body.user.username, 
                 avatar: body.user.avatar || '',
-                gender: body.user.gender || 'secret', // 防止 undefined
-                target: body.user.target || 'all',    // 防止 undefined
+                gender: body.user.gender || 'secret', 
+                target: body.user.target || 'all',    
                 qq: body.user.qq || '',
                 wx: body.user.wx || '',
-                game: body.game, 
-                desc: body.content, 
+                game: body.game || '其他', // 防止 game 为空
+                desc: body.content || '',  // 防止 content 为空
                 requirement: body.requirement || '', 
                 images: body.images || [],
                 likes: 0, likedIds: [], commentsCount: 0, timestamp: admin.firestore.FieldValue.serverTimestamp()
