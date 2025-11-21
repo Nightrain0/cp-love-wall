@@ -329,7 +329,8 @@
 
     <!-- 消息中心弹窗 -->
     <div v-if="showInboxModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/20 backdrop-blur-sm animate-fade-in">
-        <div class="glass-modal w-full max-w-xs rounded-[32px] shadow-2xl flex flex-col h-[65vh] overflow-hidden">
+        <!-- 修复：加宽弹窗，适配手机端，防止内容挤压 -->
+        <div class="glass-modal w-[90%] max-w-md rounded-[32px] shadow-2xl flex flex-col h-[65vh] overflow-hidden">
             <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-white/50">
                 <h3 class="font-extrabold text-lg text-slate-700">私信列表</h3>
                 <button @click="showInboxModal=false" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-colors"><i class="ri-close-line"></i></button>
@@ -340,13 +341,14 @@
                     <span class="text-xs font-bold">暂时没有私信哦</span>
                 </div>
                 <div v-for="chat in inboxList" :key="chat.chatId" class="flex gap-3 items-center p-3 hover:bg-white rounded-2xl cursor-pointer transition-all mb-2 relative group border border-transparent hover:border-white hover:shadow-sm" @click="openChat({username: chat.otherUsername, nickname: chat.otherNickname, avatar: chat.otherAvatar}, chat.chatId)">
-                    <img :src="chat.otherAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chat.otherUsername}`" class="w-11 h-11 rounded-full bg-white object-cover border-2 border-white shadow-sm">
+                    <img :src="chat.otherAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${chat.otherUsername}`" class="w-11 h-11 rounded-full bg-white object-cover border-2 border-white shadow-sm shrink-0">
                     <div class="flex-1 min-w-0">
                         <div class="flex justify-between items-center mb-1">
                             <span class="font-bold text-sm text-slate-700">{{ chat.otherNickname }}</span>
-                            <button @click.stop="deleteChatSession(chat.chatId)" class="w-6 h-6 rounded-full flex items-center justify-center text-slate-300 hover:bg-red-50 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"><i class="ri-close-line"></i></button>
+                            <!-- 修复：删除按钮常驻显示，加大点击热区，防止误触 -->
+                            <button @click.stop="deleteChatSession(chat.chatId)" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all"><i class="ri-delete-bin-line text-sm"></i></button>
                         </div>
-                        <p class="text-xs text-slate-400 truncate">{{ chat.lastMsg }}</p>
+                        <p class="text-xs text-slate-400 truncate pr-2">{{ chat.lastMsg }}</p>
                     </div>
                     <div v-if="chat.unread > 0" class="absolute top-3 right-3 w-2.5 h-2.5 bg-red-400 rounded-full border border-white shadow-sm animate-pulse"></div>
                 </div>
@@ -1004,10 +1006,42 @@
             });
 
             const handleAvatarUpload = async (e) => { if(e.target.files[0]) authForm.value.avatar = await compress(e.target.files[0]); };
-            const handleProfileAvatarChange = async (e) => { if(e.target.files[0]) profileForm.value.avatar = await compress(e.target.files[0]); };
+            
+            // 修复：立即更新视图层，实现零延迟预览
+            const handleProfileAvatarChange = async (e) => { 
+                if(e.target.files[0]) {
+                    const base64 = await compress(e.target.files[0]);
+                    profileForm.value.avatar = base64;
+                    // 关键修改：如果是自己的资料，立即更新显示层
+                    if(isMyProfile.value) {
+                        viewingUser.value.avatar = base64;
+                    }
+                }
+            };
+
             const handlePostImageUpload = async (e) => { if(e.target.files[0] && postForm.value.images.length<3) postForm.value.images.push(await compress(e.target.files[0])); e.target.value=''; };
             const handleAuth = async () => { if(!authForm.value.username) return alert('请输入账号'); if (authMode.value === 'register' && authForm.value.username !== 'admin') { if(authForm.value.username.length < 8) return alert('账号至少8位'); } isAuthing.value = true; try { const res = await fetch(`${API}?action=${authMode.value}`, {method:'POST', body:JSON.stringify(authForm.value)}); const d = await res.json(); if(d.error) alert(d.error); else { user.value = d.user; localStorage.setItem('cp_user', JSON.stringify(d.user)); showAuthModal.value = false; } } catch(e){ alert('网络连接错误'); } isAuthing.value = false; };
-            const handleProfileUpdate = async () => { isUpdatingProfile.value = true; try { const payload = { username: user.value.username, user: user.value, ...profileForm.value }; const res = await fetch(`${API}?action=update_profile`, { method:'POST', body:JSON.stringify(payload) }); const d = await res.json(); if(d.success) { user.value = d.user; localStorage.setItem('cp_user', JSON.stringify(d.user)); alert('保存成功'); showProfileModal.value = false; } else { alert(d.error || '保存失败'); } } catch(e) { alert('网络错误'); } isUpdatingProfile.value = false; };
+            const handleProfileUpdate = async () => { 
+                isUpdatingProfile.value = true; 
+                try { 
+                    const payload = { username: user.value.username, user: user.value, ...profileForm.value }; 
+                    const res = await fetch(`${API}?action=update_profile`, { method:'POST', body:JSON.stringify(payload) }); 
+                    const d = await res.json(); 
+                    if(d.success) { 
+                        user.value = d.user; 
+                        localStorage.setItem('cp_user', JSON.stringify(d.user)); 
+                        // 修复：保存成功后，同步当前显示的 viewingUser，确保数据一致
+                        if (isMyProfile.value) viewingUser.value = d.user;
+                        alert('保存成功'); 
+                        showProfileModal.value = false; 
+                    } else { 
+                        alert(d.error || '保存失败'); 
+                    } 
+                } catch(e) { 
+                    alert('网络错误'); 
+                } 
+                isUpdatingProfile.value = false; 
+            };
             
             const submitPost = async () => { 
                 if(!postForm.value.content) return alert('写点什么吧'); 
@@ -1032,7 +1066,6 @@
                         })
                     }); 
                     
-                    // 添加错误拦截
                     if (handleFetchError(res)) return;
 
                     const data = await res.json().catch(() => null); 
@@ -1062,7 +1095,6 @@
                         body:JSON.stringify({postId:p.id, user:user.value, content:txt})
                     });
                     if (handleFetchError(res)) {
-                        // 回滚
                         p.commentList.pop();
                         p.commentsCount--;
                     }
@@ -1078,7 +1110,12 @@
             const logout = () => { user.value=null; localStorage.removeItem('cp_user'); showProfileModal.value=false; };
             const checkAuthAndPost = () => user.value ? showPostModal.value = true : showAuthModal.value = true;
             const removeImage = i => postForm.value.images.splice(i,1);
-            const previewImage = (l,i) => preview.value = {show:true, list:l, idx:i};
+            // 修复：图片预览点击前检查数据
+            const previewImage = (l,i) => {
+                if (l && l.length > 0 && l[i]) {
+                    preview.value = {show:true, list:l, idx:i};
+                }
+            };
             const scrollToTop = () => window.scrollTo({top:0, behavior:'smooth'});
 
             return {
