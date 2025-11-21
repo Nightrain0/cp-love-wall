@@ -24,7 +24,6 @@ export default async function handler(req, res) {
     const db = getDb();
     if (!db) return res.status(500).json({ error: 'DB Error' });
 
-    // ★ 新增：后端身份校验辅助函数
     const validateUser = async (username) => {
         if (!username) return false;
         const doc = await db.collection('cp_users').doc(username).get();
@@ -34,6 +33,57 @@ export default async function handler(req, res) {
     try {
         const { action } = req.query;
         const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
+
+        // --- 管理员专属功能 ---
+        
+        // 1. 获取用户列表
+        if (req.method === 'GET' && action === 'admin_get_users') {
+            if (req.query.requestor !== 'admin') return res.status(403).json({ error: '无权访问' });
+            // 获取最近注册的 100 个用户
+            const snap = await db.collection('cp_users').orderBy('createdAt', 'desc').limit(100).get();
+            const users = snap.docs.map(d => {
+                const u = d.data();
+                delete u.password; // 不返回密码
+                return u;
+            });
+            return res.json(users);
+        }
+
+        // 2. 管理员删除用户
+        if (req.method === 'POST' && action === 'admin_delete_user') {
+            if (body.user.username !== 'admin') return res.status(403).json({ error: '无权访问' });
+            const targetUser = body.targetUsername;
+            if (targetUser === 'admin') return res.status(400).json({ error: '不能删除管理员自身' });
+            
+            await db.collection('cp_users').doc(targetUser).delete();
+            return res.json({ success: true });
+        }
+
+        // 3. 管理员手动添加用户
+        if (req.method === 'POST' && action === 'admin_add_user') {
+            if (body.user.username !== 'admin') return res.status(403).json({ error: '无权访问' });
+            
+            const { username, password, nickname, gender, target } = body.newUser;
+            if (!username || username.length < 4) return res.status(400).json({ error: '账号太短' }); // 管理员创建可以放宽限制
+            
+            const docRef = db.collection('cp_users').doc(username);
+            if ((await docRef.get()).exists) return res.status(400).json({ error: '账号已存在' });
+
+            const u = { 
+                username, 
+                password: hashPassword(password || '123456'), // 默认密码
+                nickname: nickname || '新用户', 
+                avatar: '', 
+                isAdmin: false, 
+                gender: gender || 'secret', 
+                target: target || 'all',    
+                qq: '',
+                wx: '',
+                createdAt: new Date() 
+            };
+            await docRef.set(u);
+            return res.json({ success: true, user: u });
+        }
 
         // --- 社交模块 ---
 
@@ -48,7 +98,6 @@ export default async function handler(req, res) {
             const { user, toUsername, content } = body;
             if (!user || !content) return res.status(400).json({ error: '参数错误' });
             
-            // ★ 修复：发信前校验用户是否存在
             if (!(await validateUser(user.username))) {
                 return res.status(401).json({ error: '账号异常，请重新登录' });
             }
@@ -193,7 +242,6 @@ export default async function handler(req, res) {
 
         if (req.method === 'POST' && action === 'update_profile') {
             if (body.user.username !== body.username) return res.status(403).json({ error: '非法' });
-            // update 会自动检查文档是否存在，如果不存在会报错，所以这里隐式包含了检查
             await db.collection('cp_users').doc(body.username).update({
                 nickname: body.nickname, avatar: body.avatar, gender: body.gender, target: body.target, qq: body.qq, wx: body.wx
             });
@@ -218,7 +266,6 @@ export default async function handler(req, res) {
         if (req.method === 'POST' && action === 'create_post') {
             if (!body.user) return res.status(400).json({ error: '用户未登录' });
             
-            // ★ 修复：发布前强制去数据库查验该用户是否存在
             if (!(await validateUser(body.user.username))) {
                 return res.status(401).json({ error: '账号不存在或已被删除' });
             }
@@ -259,7 +306,6 @@ export default async function handler(req, res) {
         }
 
         if (req.method === 'POST' && action === 'add_comment') {
-            // ★ 修复：评论前校验
             if (!(await validateUser(body.user.username))) {
                 return res.status(401).json({ error: '账号异常' });
             }
