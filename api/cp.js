@@ -44,18 +44,28 @@ export default async function handler(req, res) {
         
         if (action === 'register') {
             const { username, password, nickname, avatar } = body;
-            if (!username || !password || !nickname) return res.status(400).json({ error: '信息不完整' });
+            
+            // ★ 新增：长度校验
+            if (!username || username.length < 3) {
+                return res.status(400).json({ error: '账号有点短，至少要3个字符哦' });
+            }
+            if (!password || password.length < 6) {
+                return res.status(400).json({ error: '密码太简单啦，至少设置6位吧' });
+            }
+            if (!nickname) {
+                return res.status(400).json({ error: '取个好听的名字吧' });
+            }
 
             const userRef = db.collection('cp_users').doc(username);
             const userDoc = await userRef.get();
-            if (userDoc.exists) return res.status(400).json({ error: '用户名已存在' });
+            if (userDoc.exists) return res.status(400).json({ error: '这个账号名已经被别人抢先啦' });
 
             const userData = {
                 username,
                 password: hashPassword(password),
                 nickname,
                 avatar: avatar || '', 
-                isAdmin: username === 'admin', // ★ 如果用户名是 admin，自动赋予管理员权限
+                isAdmin: username === 'admin', 
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             };
             
@@ -69,14 +79,13 @@ export default async function handler(req, res) {
             const userRef = db.collection('cp_users').doc(username);
             const userDoc = await userRef.get();
             
-            if (!userDoc.exists) return res.status(400).json({ error: '用户不存在' });
+            if (!userDoc.exists) return res.status(400).json({ error: '账号不存在，要不先注册一个？' });
             
             const userData = userDoc.data();
             if (userData.password !== hashPassword(password)) {
-                return res.status(400).json({ error: '密码错误' });
+                return res.status(400).json({ error: '密码不对哦，再想想' });
             }
 
-            // 确保返回 isAdmin 字段
             userData.isAdmin = (userData.username === 'admin');
             
             delete userData.password;
@@ -132,15 +141,12 @@ export default async function handler(req, res) {
             return res.json({ success: true });
         }
 
-        // ★ 新增：管理员删除帖子
+        // 管理员删除帖子
         if (req.method === 'POST' && action === 'delete_post') {
             const { id, user } = body;
-            // 鉴权：只有 admin 用户或者是帖子的作者(可选)才能删除
-            // 这里演示只允许 admin 删除
             if (!user || user.username !== 'admin') {
                 return res.status(403).json({ error: '权限不足，只有管理员(admin)可以删除' });
             }
-
             await db.collection('cp_posts').doc(id).delete();
             return res.json({ success: true });
         }
