@@ -8,48 +8,22 @@
     <script src="https://cdn.staticfile.org/vue/3.3.4/vue.global.prod.min.js"></script>
     <link href="https://cdn.staticfile.org/remixicon/3.5.0/remixicon.css" rel="stylesheet">
     <style>
-        /* --- 视觉基础 --- */
-        body { 
-            background-color: #f8fafc;
-            background-image: linear-gradient(to bottom right, #fff1f2, #f8fafc, #f0f9ff);
-            background-attachment: fixed;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            -webkit-tap-highlight-color: transparent;
-            color: #334155;
-            user-select: none; /* 防止长按选中文字，便于触发长按事件 */
-        }
+        body { background-color: #f8fafc; background-image: linear-gradient(to bottom right, #fff1f2, #f8fafc, #f0f9ff); background-attachment: fixed; font-family: sans-serif; -webkit-tap-highlight-color: transparent; color: #334155; user-select: none; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         [v-cloak] { display: none !important; }
-
-        /* --- 动画系统 --- */
         .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
         .list-enter-active, .list-leave-active { transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1); }
         .list-enter-from, .list-leave-to { opacity: 0; transform: translateY(30px); }
         .list-move { transition: transform 0.5s ease; }
+        
+        .app-card { background: #fff; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); transition: all 0.3s ease; border: 1px solid #f1f5f9; overflow: hidden; margin-bottom: 20px; break-inside: avoid; }
+        @media (min-width: 768px) { .app-card:hover { transform: translateY(-3px); box-shadow: 0 15px 30px -5px rgba(244, 114, 182, 0.15); } }
 
-        /* --- 核心卡片 --- */
-        .app-card {
-            background: #ffffff;
-            border-radius: 20px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-            transition: all 0.3s ease;
-            border: 1px solid #f1f5f9;
-            overflow: hidden;
-            margin-bottom: 20px;
-            break-inside: avoid;
-        }
-        /* 电脑端才有的悬停效果，防止手机误触 */
-        @media (min-width: 768px) {
-            .app-card:hover { transform: translateY(-3px); box-shadow: 0 15px 30px -5px rgba(244, 114, 182, 0.15); }
-        }
-
-        /* --- 标签 --- */
         .tag { font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 100px; transition: all 0.2s; white-space: nowrap; }
         .tag-active { background: #1e293b; color: #fff; transform: scale(1.05); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
         .tag-inactive { background: #fff; color: #64748b; border: 1px solid #e2e8f0; }
 
-        /* --- 图片九宫格 --- */
         .img-grid { display: grid; gap: 4px; border-radius: 12px; overflow: hidden; margin-top: 12px; }
         .img-grid-1 { grid-template-columns: 1fr; }
         .img-grid-2 { grid-template-columns: 1fr 1fr; }
@@ -60,21 +34,8 @@
 
         .pb-safe { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
         .fab-safe { bottom: calc(32px + env(safe-area-inset-bottom)); }
-
-        /* --- 骨架屏动画 --- */
-        @keyframes shimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
-        }
-        .skeleton {
-            background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
-            border-radius: 6px;
-        }
-        
-        /* 评论选中态 */
-        .comment-active { background-color: #fff1f2; border-radius: 8px; transition: background 0.3s; }
+        .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px; }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
     </style>
 </head>
 <body>
@@ -87,7 +48,6 @@
 
 <div id="app" v-cloak class="min-h-screen">
     
-    <!-- 导航栏 -->
     <header class="fixed top-0 inset-x-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-100 h-16 flex items-center justify-between px-4 transition-shadow" :class="{'shadow-sm': scrollY > 10}">
         <div class="flex items-center gap-2 cursor-pointer" @click="refresh">
             <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center text-white shadow-lg shadow-pink-200">
@@ -100,52 +60,43 @@
                 <div class="text-xs font-bold text-slate-700">{{ user.nickname }}</div>
                 <div v-if="user.isAdmin" class="text-[10px] text-rose-500 bg-rose-50 px-1 rounded">管理员</div>
             </div>
-            <img :src="user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`" class="w-9 h-9 rounded-full border bg-white object-cover">
-            <button @click="logout" class="w-8 h-8 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
-                <i class="ri-logout-box-r-line"></i>
-            </button>
+            <!-- 点击头像打开个人中心 -->
+            <img @click="showProfileModal=true" :src="user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`" class="w-9 h-9 rounded-full border bg-white object-cover cursor-pointer hover:opacity-80 transition-opacity">
         </div>
         <button v-else @click="showAuthModal = true" class="bg-slate-900 text-white text-xs font-bold px-5 py-2 rounded-full shadow-lg">登录/注册</button>
     </header>
     <div class="h-16"></div>
 
-    <!-- 筛选 -->
     <div class="sticky top-16 z-30 bg-white/90 backdrop-blur-md border-b border-slate-50 py-3 px-4 overflow-x-auto hide-scrollbar">
         <div class="flex gap-2 min-w-max">
             <button v-for="g in games" :key="g" @click="changeFilter(g)" class="tag" :class="filterGame === g ? 'tag-active' : 'tag-inactive'">{{ g }}</button>
         </div>
     </div>
 
-    <!-- 公告 -->
     <div v-if="notice" class="max-w-5xl mx-auto px-4 mt-4">
         <div class="bg-orange-50 border border-orange-100 rounded-xl p-3 flex gap-2 text-xs text-orange-700">
             <i class="ri-notification-4-fill"></i> {{ notice }}
         </div>
     </div>
 
-    <!-- 内容区 -->
     <main class="max-w-5xl mx-auto px-4 pt-6 pb-safe">
-        <!-- 错误提示 -->
         <div v-if="error" class="text-center py-20">
              <div class="text-4xl mb-2">⚠️</div>
              <p class="text-sm text-slate-500 mb-4">{{ error }}</p>
              <button @click="refresh" class="bg-rose-500 text-white px-6 py-2 rounded-full text-sm font-bold">重试</button>
         </div>
 
-        <!-- 页面 Loading -->
         <div v-else-if="loading" class="text-center py-32 text-rose-300">
             <i class="ri-loader-4-line text-3xl animate-spin"></i>
             <p class="text-xs font-bold mt-2">加载中...</p>
         </div>
 
-        <!-- 空状态 -->
         <div v-else-if="!posts.length" class="text-center py-32 text-slate-400">
             <div class="text-5xl mb-2 grayscale opacity-50">🏔️</div>
             <p class="text-sm font-bold">暂无内容</p>
             <button @click="checkAuthAndPost" class="mt-4 text-rose-500 text-xs font-bold hover:underline">去发布</button>
         </div>
 
-        <!-- 瀑布流列表 -->
         <div v-else class="flex gap-4 items-start">
             <div v-for="(col, i) in columns" :key="i" class="flex-1 flex flex-col gap-4 min-w-0">
                 <div v-for="post in col" :key="post.id" class="app-card p-4 group relative">
@@ -156,29 +107,42 @@
                             <div>
                                 <div class="flex items-center gap-1 flex-wrap">
                                     <span class="text-sm font-bold text-slate-800">{{ post.nickname }}</span>
+                                    <!-- 性别图标 -->
+                                    <i v-if="post.gender==='male'" class="ri-men-line text-blue-400 text-xs"></i>
+                                    <i v-if="post.gender==='female'" class="ri-women-line text-pink-400 text-xs"></i>
                                     <span class="text-[10px] px-1.5 py-0.5 bg-slate-100 rounded text-slate-500">{{ post.game }}</span>
                                 </div>
-                                <div class="text-[10px] text-slate-400">{{ post.timeStr }}</div>
+                                <div class="flex gap-2 items-center">
+                                    <span class="text-[10px] text-slate-400">{{ post.timeStr }}</span>
+                                    <!-- 寻找目标标签 -->
+                                    <span v-if="post.target==='male'" class="text-[9px] bg-blue-50 text-blue-500 px-1 rounded">找小哥哥</span>
+                                    <span v-if="post.target==='female'" class="text-[9px] bg-pink-50 text-pink-500 px-1 rounded">找小姐姐</span>
+                                </div>
                             </div>
                         </div>
-                        <!-- 帖子删除 (本人/Admin) -->
-                        <button v-if="user && (user.isAdmin || user.username === post.username)" @click="deletePost(post.id)" class="text-slate-300 hover:text-red-500 p-2">
-                            <i class="ri-delete-bin-line"></i>
+                        <button v-if="user && (user.isAdmin || user.username === post.username)" @click="deletePost(post.id)" class="text-slate-300 hover:text-red-500 p-2"><i class="ri-delete-bin-line"></i></button>
+                    </div>
+
+                    <div class="text-sm text-slate-700 mb-3 whitespace-pre-wrap break-words">{{ post.desc }}</div>
+                    
+                    <!-- 扩展：联系方式展示区 -->
+                    <div v-if="post.qq || post.wx" class="flex gap-2 mb-3">
+                        <button v-if="post.qq" @click="copyText(post.qq, 'QQ')" class="flex items-center gap-1 text-[10px] bg-blue-50 text-blue-500 px-2 py-1 rounded hover:bg-blue-100 transition-colors">
+                            <i class="ri-qq-fill"></i> {{ post.qq }}
+                        </button>
+                        <button v-if="post.wx" @click="copyText(post.wx, '微信')" class="flex items-center gap-1 text-[10px] bg-green-50 text-green-500 px-2 py-1 rounded hover:bg-green-100 transition-colors">
+                            <i class="ri-wechat-fill"></i> {{ post.wx }}
                         </button>
                     </div>
 
-                    <!-- 内容 -->
-                    <div class="text-sm text-slate-700 mb-3 whitespace-pre-wrap break-words">{{ post.desc }}</div>
                     <div v-if="post.requirement" class="bg-rose-50 rounded-lg p-2 mb-3 text-xs text-slate-600 border border-rose-100">
                         <span class="font-bold text-rose-500">需求：</span>{{ post.requirement }}
                     </div>
 
-                    <!-- 图片 -->
                     <div v-if="post.images && post.images.length" class="img-grid" :class="'img-grid-' + Math.min(post.images.length, 3)">
                         <img v-for="(img, idx) in post.images" :key="idx" :src="img" class="img-item" @click="previewImage(post.images, idx)">
                     </div>
 
-                    <!-- 底部操作 -->
                     <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
                         <button @click="toggleComments(post)" class="flex items-center gap-1 text-slate-400 hover:text-slate-600 text-xs font-bold px-2 py-1">
                             <i class="ri-chat-1-line text-base"></i> {{ post.commentsCount || 0 }}
@@ -188,60 +152,30 @@
                         </button>
                     </div>
 
-                    <!-- 评论区 (优化版) -->
                     <div v-if="post.showComments" class="mt-3 pt-3 border-t border-dashed border-slate-100 animate-fade-in">
-                        
-                        <!-- 骨架屏Loading (替换文字Loading) -->
                         <div v-if="post.loadingComments" class="space-y-3 py-2">
-                            <div class="flex gap-2 items-center">
-                                <div class="skeleton w-6 h-6 rounded-full shrink-0"></div>
-                                <div class="skeleton h-4 w-24"></div>
-                            </div>
-                            <div class="flex gap-2 items-center">
-                                <div class="skeleton w-6 h-6 rounded-full shrink-0"></div>
-                                <div class="skeleton h-4 w-32"></div>
-                            </div>
+                            <div class="flex gap-2 items-center"><div class="skeleton w-6 h-6 rounded-full shrink-0"></div><div class="skeleton h-4 w-24"></div></div>
+                            <div class="flex gap-2 items-center"><div class="skeleton w-6 h-6 rounded-full shrink-0"></div><div class="skeleton h-4 w-32"></div></div>
                         </div>
-
-                        <!-- 评论列表 -->
                         <div v-else>
-                            <div v-if="!post.commentList?.length" class="text-center text-xs text-slate-300 py-4">
-                                沙发空缺中，快来抢~
-                            </div>
-                            
-                            <!-- 列表容器 -->
+                            <div v-if="!post.commentList?.length" class="text-center text-xs text-slate-300 py-4">沙发空缺中，快来抢~</div>
                             <div class="space-y-3 mb-3 max-h-60 overflow-y-auto custom-scrollbar pr-1">
                                 <div v-for="cmt in post.commentList" :key="cmt.id" 
                                      class="flex gap-2 text-xs group/cmt p-1"
-                                     @touchstart="startLongPress(post, cmt)" 
-                                     @touchend="endLongPress" 
-                                     @touchmove="endLongPress">
-                                    
-                                    <img :src="cmt.avatar || `https://api.dicebear.com/7.x/avataaars/svg`" class="w-7 h-7 rounded-full bg-slate-100 shrink-0 border border-white">
-                                    
+                                     @touchstart="startLongPress(post, cmt)" @touchend="endLongPress" @touchmove="endLongPress">
+                                    <img :src="cmt.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${cmt.username || cmt.nickname}`" class="w-7 h-7 rounded-full bg-slate-100 shrink-0 border border-white">
                                     <div class="flex-1 min-w-0">
                                         <div class="flex justify-between items-baseline">
                                             <span class="font-bold text-slate-700">{{ cmt.nickname }}</span>
-                                            
-                                            <!-- 显性删除按钮 -->
                                             <div class="flex items-center gap-3">
-                                                <!-- 电脑端显示的回复按钮 -->
-                                                <button @click="triggerReply(post, cmt)" class="hidden md:block text-rose-400 hover:text-rose-600 font-bold opacity-0 group-hover/cmt:opacity-100 transition-opacity">
-                                                    ↩︎ 回复
-                                                </button>
-                                                
-                                                <!-- 始终显示的删除文字 (如果是本人/管理员) -->
-                                                <button v-if="user && (user.isAdmin || user.username === cmt.username)" @click="deleteComment(post, cmt.id)" class="text-slate-300 hover:text-red-500 font-bold">
-                                                    删除
-                                                </button>
+                                                <button @click="triggerReply(post, cmt)" class="hidden md:block text-rose-400 hover:text-rose-600 font-bold opacity-0 group-hover/cmt:opacity-100 transition-opacity">↩︎ 回复</button>
+                                                <button v-if="user && (user.isAdmin || user.username === cmt.username)" @click="deleteComment(post, cmt.id)" class="text-slate-300 hover:text-red-500 font-bold">删除</button>
                                             </div>
                                         </div>
                                         <p class="text-slate-600 mt-0.5 leading-relaxed break-all">{{ cmt.content }}</p>
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- 输入框 -->
                             <div class="flex gap-2 items-center mt-2">
                                 <input v-model="post.newCommentInput" :ref="'input-'+post.id" placeholder="友善评论..." class="flex-1 bg-slate-50 border border-slate-100 rounded-full px-4 py-2 text-xs focus:bg-white focus:ring-2 focus:ring-rose-100 outline-none transition-all">
                                 <button @click="submitComment(post)" class="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center hover:bg-black shadow-md active:scale-95 transition-all"><i class="ri-send-plane-fill text-xs"></i></button>
@@ -253,13 +187,80 @@
         </div>
     </main>
 
-    <!-- 底部悬浮 -->
     <div class="fixed right-5 z-40 flex flex-col gap-3 fab-safe">
         <button v-show="scrollY > 300" @click="scrollToTop" class="w-10 h-10 bg-white rounded-full shadow-lg text-slate-400 flex items-center justify-center border border-slate-50"><i class="ri-arrow-up-line"></i></button>
         <button @click="checkAuthAndPost" class="w-12 h-12 bg-slate-900 text-white rounded-full shadow-xl flex items-center justify-center hover:scale-105 transition-transform"><i class="ri-add-line text-xl"></i></button>
     </div>
 
-    <!-- 弹窗组件省略部分保持不变，重点是逻辑部分 -->
+    <!-- 个人中心弹窗 (New) -->
+    <div v-if="showProfileModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white w-full max-w-xs rounded-3xl shadow-2xl p-6 overflow-y-auto max-h-[90vh]">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-extrabold text-lg text-slate-800">个人中心</h3>
+                <button @click="showProfileModal=false" class="text-slate-400 hover:text-slate-600"><i class="ri-close-line text-xl"></i></button>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- 头像修改 -->
+                <div class="flex justify-center">
+                    <div class="relative w-20 h-20 group cursor-pointer" @click="$refs.profileAvatarInput.click()">
+                        <img :src="profileForm.avatar || user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`" class="w-full h-full rounded-full object-cover border-2 border-white shadow-md">
+                        <div class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                            <i class="ri-camera-fill"></i>
+                        </div>
+                        <input type="file" ref="profileAvatarInput" hidden accept="image/*" @change="handleProfileAvatarChange">
+                    </div>
+                </div>
+
+                <!-- 昵称 (只读) -->
+                <div>
+                    <label class="text-xs font-bold text-slate-400 block mb-1">昵称 (改昵称请联系管理)</label>
+                    <div class="bg-slate-50 px-3 py-2 rounded-lg text-sm text-slate-600 font-bold">{{ profileForm.nickname }}</div>
+                </div>
+
+                <!-- 性别 -->
+                <div>
+                    <label class="text-xs font-bold text-slate-400 block mb-2">我的性别</label>
+                    <div class="flex gap-2">
+                        <button @click="profileForm.gender='male'" class="flex-1 py-2 rounded-lg text-xs font-bold border transition-all" :class="profileForm.gender==='male'?'bg-blue-50 border-blue-200 text-blue-500':'bg-white border-slate-200 text-slate-400'">👦 男生</button>
+                        <button @click="profileForm.gender='female'" class="flex-1 py-2 rounded-lg text-xs font-bold border transition-all" :class="profileForm.gender==='female'?'bg-pink-50 border-pink-200 text-pink-500':'bg-white border-slate-200 text-slate-400'">👧 女生</button>
+                    </div>
+                </div>
+
+                <!-- 找CP意向 -->
+                <div>
+                    <label class="text-xs font-bold text-slate-400 block mb-2">我想找</label>
+                    <div class="flex gap-2">
+                        <button @click="profileForm.target='male'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='male'?'bg-blue-50 border-blue-200 text-blue-500':'bg-white border-slate-200 text-slate-400'">找男生</button>
+                        <button @click="profileForm.target='female'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='female'?'bg-pink-50 border-pink-200 text-pink-500':'bg-white border-slate-200 text-slate-400'">找女生</button>
+                        <button @click="profileForm.target='all'" class="flex-1 py-2 rounded-lg text-[10px] font-bold border transition-all" :class="profileForm.target==='all'?'bg-purple-50 border-purple-200 text-purple-500':'bg-white border-slate-200 text-slate-400'">都可以</button>
+                    </div>
+                </div>
+
+                <!-- 联系方式 (选填) -->
+                <div>
+                    <label class="text-xs font-bold text-slate-400 block mb-2">扩列方式 (选填)</label>
+                    <div class="space-y-2">
+                        <div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+                            <i class="ri-qq-fill text-blue-400"></i>
+                            <input v-model="profileForm.qq" placeholder="QQ号" class="bg-transparent text-xs w-full outline-none">
+                        </div>
+                        <div class="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+                            <i class="ri-wechat-fill text-green-400"></i>
+                            <input v-model="profileForm.wx" placeholder="微信号" class="bg-transparent text-xs w-full outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <button @click="handleProfileUpdate" :disabled="isUpdatingProfile" class="w-full bg-slate-900 text-white font-bold py-3 rounded-xl shadow-lg active:scale-95 transition-all disabled:opacity-50">
+                    {{ isUpdatingProfile ? '保存中...' : '保存资料' }}
+                </button>
+                <button @click="logout" class="w-full text-xs text-red-400 hover:text-red-600 py-2">退出登录</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login/Register Modal -->
     <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
         <div class="bg-white w-full max-w-xs rounded-2xl p-6 shadow-2xl">
             <h3 class="text-center font-bold text-lg mb-4">{{ authMode==='login'?'登录':'注册' }}</h3>
@@ -268,7 +269,6 @@
                     <div class="w-16 h-16 rounded-full bg-slate-50 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-300 overflow-hidden relative">
                         <img v-if="authForm.avatar" :src="authForm.avatar" class="w-full h-full object-cover">
                         <i v-else class="ri-camera-fill text-xl"></i>
-                        <span v-if="authForm.avatar" class="absolute bottom-0 text-[8px] bg-black/50 text-white w-full text-center">已压缩</span>
                     </div>
                     <input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarUpload">
                 </div>
@@ -284,6 +284,7 @@
         </div>
     </div>
 
+    <!-- Post Modal -->
     <div v-if="showPostModal" class="fixed inset-0 z-50 bg-white flex flex-col">
         <div class="flex justify-between items-center p-4 border-b">
             <button @click="showPostModal=false" class="text-slate-500">取消</button>
@@ -317,6 +318,7 @@
         </div>
     </div>
 
+    <!-- Preview -->
     <div v-if="preview.show" class="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center" @click="preview.show=false">
         <img :src="preview.list[preview.idx]" class="max-w-full max-h-screen object-contain">
     </div>
@@ -339,8 +341,10 @@
             const showAuthModal = ref(false);
             const authMode = ref('login');
             const showPostModal = ref(false);
+            const showProfileModal = ref(false); // 新增：个人中心弹窗
             const submitting = ref(false);
             const isAuthing = ref(false);
+            const isUpdatingProfile = ref(false); // 新增：更新状态
             const preview = ref({show:false, list:[], idx:0});
 
             const games = ['全部', '王者荣耀', '原神', '光遇', '英雄联盟', '和平精英', '蛋仔派对', '无畏契约', '其他'];
@@ -348,31 +352,36 @@
             const authForm = ref({username:'', password:'', nickname:'', avatar:''});
             const postForm = ref({content:'', game:'王者荣耀', requirement:'', images:[]});
             
+            // 新增：个人资料表单
+            const profileForm = ref({ nickname:'', avatar:'', gender:'', target:'all', qq:'', wx:'' });
+
             const columns = ref([[], [], []]);
             const windowWidth = ref(window.innerWidth);
 
-            // --- 长按逻辑 ---
+            // 初始化加载用户资料
+            watch(user, (newVal) => {
+                if(newVal) {
+                    profileForm.value = {
+                        nickname: newVal.nickname,
+                        avatar: newVal.avatar || '',
+                        gender: newVal.gender || '',
+                        target: newVal.target || 'all',
+                        qq: newVal.qq || '',
+                        wx: newVal.wx || ''
+                    };
+                }
+            }, { immediate: true });
+
             let longPressTimer = null;
             const startLongPress = (post, cmt) => {
-                longPressTimer = setTimeout(() => {
-                    if(navigator.vibrate) navigator.vibrate(50); // 震动反馈
-                    triggerReply(post, cmt);
-                }, 600); // 600ms 算长按
+                longPressTimer = setTimeout(() => { if(navigator.vibrate) navigator.vibrate(50); triggerReply(post, cmt); }, 600);
             };
             const endLongPress = () => { clearTimeout(longPressTimer); };
 
-            // --- 回复逻辑 ---
             const triggerReply = (post, cmt) => {
                 if(!user.value) return showAuthModal.value = true;
-                const replyText = `回复 @${cmt.nickname} : `;
-                post.newCommentInput = replyText;
-                
-                // 自动聚焦输入框
-                nextTick(() => {
-                    const inputEl = app._instance.refs['input-'+post.id];
-                    // 兼容 ref 是数组的情况 (v-for 中)
-                    if(inputEl) (Array.isArray(inputEl) ? inputEl[0] : inputEl).focus();
-                });
+                post.newCommentInput = `回复 @${cmt.nickname} : `;
+                nextTick(() => { const el = app._instance.refs['input-'+post.id]; if(el) (Array.isArray(el)?el[0]:el).focus(); });
             };
 
             const updateColumns = () => {
@@ -463,6 +472,7 @@
             });
 
             const handleAvatarUpload = async (e) => { if(e.target.files[0]) authForm.value.avatar = await compress(e.target.files[0]); };
+            const handleProfileAvatarChange = async (e) => { if(e.target.files[0]) profileForm.value.avatar = await compress(e.target.files[0]); }; // 个人中心改头像
             const handlePostImageUpload = async (e) => { 
                 if(e.target.files[0] && postForm.value.images.length<3) postForm.value.images.push(await compress(e.target.files[0])); 
                 e.target.value='';
@@ -481,6 +491,25 @@
                     else { user.value = d.user; localStorage.setItem('cp_user', JSON.stringify(d.user)); showAuthModal.value = false; }
                 } catch(e){ alert('网络错误'); }
                 isAuthing.value = false;
+            };
+
+            // 更新个人资料
+            const handleProfileUpdate = async () => {
+                isUpdatingProfile.value = true;
+                try {
+                    const payload = { username: user.value.username, user: user.value, ...profileForm.value };
+                    const res = await fetch(`${API}?action=update_profile`, { method:'POST', body:JSON.stringify(payload) });
+                    const d = await res.json();
+                    if(d.success) {
+                        user.value = d.user;
+                        localStorage.setItem('cp_user', JSON.stringify(d.user));
+                        alert('保存成功');
+                        showProfileModal.value = false;
+                    } else {
+                        alert(d.error || '保存失败');
+                    }
+                } catch(e) { alert('网络错误'); }
+                isUpdatingProfile.value = false;
             };
 
             const submitPost = async () => {
@@ -522,7 +551,9 @@
                 if(!p.newCommentInput) return;
                 const txt = p.newCommentInput; p.newCommentInput='';
                 if(!p.commentList) p.commentList=[];
-                p.commentList.push({id:Date.now(), nickname:user.value.nickname, username:user.value.username, content:txt});
+                
+                const tempCmt = {id:Date.now(), nickname:user.value.nickname, username:user.value.username, avatar:user.value.avatar, content:txt};
+                p.commentList.push(tempCmt);
                 p.commentsCount = (p.commentsCount||0)+1;
                 await fetch(`${API}?action=add_comment`, {method:'POST', body:JSON.stringify({postId:p.id, user:user.value, content:txt})});
             };
@@ -533,8 +564,24 @@
                 }
             };
 
+            // 辅助工具
+            const copyText = (text, label) => {
+                if(navigator.clipboard) {
+                    navigator.clipboard.writeText(text).then(() => alert(`已复制 ${label}: ${text}`));
+                } else {
+                    // Fallback
+                    const input = document.createElement('input');
+                    input.value = text;
+                    document.body.appendChild(input);
+                    input.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(input);
+                    alert(`已复制 ${label}: ${text}`);
+                }
+            };
+
             const changeFilter = g => filterGame.value = g;
-            const logout = () => { user.value=null; localStorage.removeItem('cp_user'); };
+            const logout = () => { user.value=null; localStorage.removeItem('cp_user'); showProfileModal.value = false; };
             const checkAuthAndPost = () => user.value ? showPostModal.value = true : showAuthModal.value = true;
             const removeImage = i => postForm.value.images.splice(i,1);
             const previewImage = (l,i) => preview.value = {show:true, list:l, idx:i};
@@ -544,10 +591,15 @@
                 user, loading, error, posts, columns, games, filterGame, notice, scrollY,
                 showAuthModal, authMode, authForm, isAuthing,
                 showPostModal, postForm, submitting, preview,
+                // 新增状态
+                showProfileModal, profileForm, isUpdatingProfile,
+                
                 refresh:fetchPosts, handleAuth, handleAvatarUpload, handlePostImageUpload, submitPost,
                 deletePost, isLiked, handleLike, toggleComments, submitComment, deleteComment,
                 changeFilter, logout, checkAuthAndPost, removeImage, previewImage, scrollToTop,
-                startLongPress, endLongPress, triggerReply
+                startLongPress, endLongPress, triggerReply,
+                // 新增方法
+                handleProfileAvatarChange, handleProfileUpdate, copyText
             };
         }
     }).mount('#app');
