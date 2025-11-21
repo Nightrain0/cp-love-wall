@@ -623,6 +623,7 @@
             const totalUnread = ref(0);
             let chatPoller = null;
             let inboxPoller = null;
+            let dataPoller = null; // 新增数据轮询器
 
             const games = ['全部', '王者荣耀', '原神', '光遇', '英雄联盟', '和平精英', '蛋仔派对', '无畏契约', '崩坏:星穹铁道', '其他'];
             const filterGame = ref('全部');
@@ -665,7 +666,12 @@
                 const staticLoading = document.getElementById('static-loading');
                 if(staticLoading) { staticLoading.style.opacity = 0; setTimeout(()=>staticLoading.remove(), 500); }
                 try { const u = localStorage.getItem('cp_user'); if(u) user.value = JSON.parse(u); } catch(e){}
-                fetchPosts();
+                
+                fetchPosts(); // 首次加载
+                
+                // ★ 新增：启动自动刷新 (每5秒一次)，实现伪实时效果
+                dataPoller = setInterval(() => fetchPosts(true), 5000);
+                
                 if(user.value) { checkUnread(); inboxPoller = setInterval(checkUnread, 10000); }
             });
 
@@ -779,37 +785,57 @@
             window.onresize = () => { windowWidth.value = window.innerWidth; updateColumns(); };
             window.onscroll = () => scrollY.value = window.scrollY;
             
-            // ★★★ 核心优化：缓存+静默更新机制 ★★★
-            const fetchPosts = async () => { 
-                const cached = localStorage.getItem('cp_posts_cache');
-                if(cached && posts.value.length === 0) {
-                    try {
-                        posts.value = JSON.parse(cached);
-                        loading.value = false; 
-                        updateColumns();
-                    } catch(e){}
-                }
-
-                if(posts.value.length === 0) {
-                    loading.value = true;
-                    setTimeout(() => showSlowTip.value = true, 3000);
+            // ★★★ 核心优化：智能合并数据，防止页面闪烁 ★★★
+            const fetchPosts = async (isBackground = false) => { 
+                // 1. 首次加载读取缓存
+                if (!isBackground) {
+                    const cached = localStorage.getItem('cp_posts_cache');
+                    if(cached && posts.value.length === 0) {
+                        try { posts.value = JSON.parse(cached); loading.value = false; updateColumns(); } catch(e){}
+                    }
+                    if(posts.value.length === 0) {
+                        loading.value = true;
+                        setTimeout(() => showSlowTip.value = true, 3000);
+                    }
                 }
                 
-                error.value = ''; 
+                if (!isBackground) error.value = ''; 
                 
                 try { 
-                    const res = await fetch(`${API}?t=${Date.now()}`); 
-                    if(!res.ok) throw new Error('连接超时啦'); 
-                    const data = await res.json(); 
-                    if(Array.isArray(data)) {
-                        posts.value = data; 
-                        localStorage.setItem('cp_posts_cache', JSON.stringify(data)); 
-                    } else throw new Error('数据格式错误'); 
+                    // 2. 获取最新数据
+                    const res = await fetch(`${API}?t=${Date.now()}`); // 加时间戳防缓存
+                    if(!res.ok) throw new Error('连接超时'); 
+                    const newData = await res.json(); 
+                    
+                    if(Array.isArray(newData)) {
+                        // ★ 智能合并：保留当前用户正在操作的状态（如打开的评论区、输入的文字）
+                        // 这样刷新时才不会“跳变”或丢失输入
+                        const oldMap = new Map(posts.value.map(p => [p.id, p]));
+                        
+                        const mergedPosts = newData.map(newPost => {
+                            const oldPost = oldMap.get(newPost.id);
+                            if (oldPost) {
+                                // 如果帖子已存在，保留它的 UI 状态
+                                return {
+                                    ...newPost, // 使用新的数据（点赞数、评论数等）
+                                    showComments: oldPost.showComments, // 保持评论区展开状态
+                                    commentList: oldPost.commentList,   // 暂时保留旧评论列表，避免折叠
+                                    loadingComments: oldPost.loadingComments,
+                                    newCommentInput: oldPost.newCommentInput, // 保留用户正在输入的文字
+                                    liking: oldPost.liking // 保留点赞loading状态
+                                };
+                            }
+                            return newPost; // 新帖子直接返回
+                        });
+
+                        posts.value = mergedPosts; 
+                        localStorage.setItem('cp_posts_cache', JSON.stringify(mergedPosts)); 
+                    } 
                 } catch(e) { 
-                    if(posts.value.length === 0) error.value = e.message; 
-                    else console.log("静默更新失败", e);
+                    if(!isBackground && posts.value.length === 0) error.value = e.message; 
+                    // 后台刷新失败不弹窗，以免打扰用户
                 } finally {
-                    loading.value = false; 
+                    if (!isBackground) loading.value = false; 
                 }
             };
 
