@@ -589,32 +589,33 @@
         </div>
     </div>
 
-    <!-- 管理面板 -->
+    <!-- 管理面板 (手机适配优化版) -->
     <div v-if="showAdminModal" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/30 backdrop-blur-sm animate-fade-in">
-        <div class="glass-modal w-full max-w-md rounded-[32px] shadow-2xl flex flex-col h-[80vh] overflow-hidden">
+        <div class="glass-modal w-[90%] max-w-lg rounded-[32px] shadow-2xl flex flex-col h-auto max-h-[85vh] overflow-hidden">
             <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-white/50">
                 <h3 class="font-extrabold text-lg text-slate-700">管理员后台</h3>
                 <button @click="showAdminModal=false" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-colors"><i class="ri-close-line"></i></button>
             </div>
             <div class="flex-1 overflow-y-auto p-4 space-y-6">
                 
-                <!-- 添加用户部分 -->
+                <!-- 添加用户部分：手机端竖排布局 -->
                 <div class="bg-white/50 rounded-2xl p-4 border border-white/60">
                     <h4 class="font-bold text-sm text-slate-600 mb-3 flex items-center gap-2"><i class="ri-user-add-fill"></i> 手动添加账号</h4>
-                    <div class="space-y-2">
-                        <div class="flex gap-2">
-                            <input v-model="adminForm.username" placeholder="账号" class="flex-1 bg-white rounded-lg px-3 py-2 text-xs border border-slate-200 focus:border-pink-300 outline-none">
-                            <input v-model="adminForm.password" placeholder="密码 (默认123456)" class="flex-1 bg-white rounded-lg px-3 py-2 text-xs border border-slate-200 focus:border-pink-300 outline-none">
+                    <div class="space-y-3">
+                        <!-- 手机竖排，电脑横排 -->
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <input v-model="adminForm.username" placeholder="账号" class="w-full bg-white rounded-lg px-3 py-2 text-xs border border-slate-200 focus:border-pink-300 outline-none">
+                            <input v-model="adminForm.password" placeholder="密码 (默认123456)" class="w-full bg-white rounded-lg px-3 py-2 text-xs border border-slate-200 focus:border-pink-300 outline-none">
                         </div>
-                        <div class="flex gap-2">
-                            <input v-model="adminForm.nickname" placeholder="昵称" class="flex-1 bg-white rounded-lg px-3 py-2 text-xs border border-slate-200 focus:border-pink-300 outline-none">
-                            <select v-model="adminForm.gender" class="w-20 bg-white rounded-lg px-2 py-2 text-xs border border-slate-200 outline-none">
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <input v-model="adminForm.nickname" placeholder="昵称" class="w-full bg-white rounded-lg px-3 py-2 text-xs border border-slate-200 focus:border-pink-300 outline-none">
+                            <select v-model="adminForm.gender" class="w-full sm:w-24 bg-white rounded-lg px-2 py-2 text-xs border border-slate-200 outline-none">
                                 <option value="male">男</option>
                                 <option value="female">女</option>
                                 <option value="secret">保密</option>
                             </select>
                         </div>
-                        <button @click="handleAdminAddUser" class="w-full bg-slate-800 text-white text-xs font-bold py-2 rounded-lg hover:bg-slate-900 transition-colors">创建账号</button>
+                        <button @click="handleAdminAddUser" class="w-full bg-slate-800 text-white text-xs font-bold py-3 rounded-xl hover:bg-slate-900 transition-colors shadow-sm active:scale-95">创建账号</button>
                     </div>
                 </div>
 
@@ -622,21 +623,21 @@
                 <div class="bg-white/50 rounded-2xl p-4 border border-white/60">
                     <div class="flex justify-between items-center mb-3">
                         <h4 class="font-bold text-sm text-slate-600 flex items-center gap-2"><i class="ri-group-fill"></i> 用户列表 ({{ adminUsers.length }})</h4>
-                        <button @click="fetchAdminUsers" class="text-xs text-blue-500 font-bold hover:underline">刷新</button>
+                        <button @click="fetchAdminUsers" class="text-xs text-blue-500 font-bold hover:underline bg-blue-50 px-2 py-1 rounded-lg">刷新</button>
                     </div>
                     <div class="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                        <div v-for="u in adminUsers" :key="u.username" class="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-100">
-                            <div class="flex items-center gap-2 overflow-hidden">
-                                <img :src="u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`" class="w-8 h-8 rounded-full bg-slate-50 object-cover">
+                        <div v-for="u in adminUsers" :key="u.username" class="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-100">
+                            <div class="flex items-center gap-3 overflow-hidden">
+                                <img :src="u.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.username}`" class="w-9 h-9 rounded-full bg-slate-50 object-cover border border-slate-100">
                                 <div class="min-w-0">
                                     <div class="flex items-center gap-1">
-                                        <span class="text-xs font-bold text-slate-700 truncate">{{ u.nickname }}</span>
-                                        <span v-if="u.isAdmin" class="text-[9px] bg-yellow-100 text-yellow-600 px-1 rounded">管理员</span>
+                                        <span class="text-xs font-bold text-slate-700 truncate max-w-[100px]">{{ u.nickname }}</span>
+                                        <span v-if="u.isAdmin" class="text-[9px] bg-yellow-100 text-yellow-600 px-1.5 py-0.5 rounded font-bold">管理员</span>
                                     </div>
-                                    <p class="text-[10px] text-slate-400 truncate">@{{ u.username }}</p>
+                                    <p class="text-[10px] text-slate-400 truncate font-mono">@{{ u.username }}</p>
                                 </div>
                             </div>
-                            <button v-if="u.username !== 'admin'" @click="handleAdminDeleteUser(u.username)" class="text-xs text-red-400 hover:text-red-600 bg-red-50 px-2 py-1 rounded-lg font-bold">删除</button>
+                            <button v-if="u.username !== 'admin'" @click="handleAdminDeleteUser(u.username)" class="text-xs text-red-500 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg font-bold transition-colors">删除</button>
                         </div>
                     </div>
                 </div>
@@ -666,9 +667,7 @@
             const showProfileModal = ref(false);
             const showInboxModal = ref(false);
             const showChatModal = ref(false);
-            // 新增管理模态框状态
             const showAdminModal = ref(false);
-            // 管理数据
             const adminUsers = ref([]);
             const adminForm = ref({ username:'', password:'', nickname:'', gender:'secret', target:'all' });
 
@@ -699,6 +698,16 @@
             const windowWidth = ref(window.innerWidth);
             const genderMap = { male:'男生', female:'女生', secret:'保密' };
             const targetMap = { male:'找男生', female:'找女生', all:'不限' };
+
+            // 错误处理辅助函数：如果是401，自动登出
+            const handleFetchError = (response) => {
+                if (response.status === 401) {
+                    alert('登录状态失效或账号被删除，请重新登录');
+                    logout();
+                    return true;
+                }
+                return false;
+            };
 
             const scrollToBottom = (force = false) => {
                 nextTick(() => {
@@ -732,7 +741,6 @@
                 
                 fetchPosts();
                 
-                // Polling
                 dataPoller = setInterval(() => fetchPosts(true), 5000);
                 
                 if(user.value) { checkUnread(); inboxPoller = setInterval(checkUnread, 10000); }
@@ -749,7 +757,6 @@
                 checkUnread();
             };
 
-            // 管理员功能
             const openAdminPanel = () => {
                 if (!user.value || !user.value.isAdmin) return;
                 showAdminModal.value = true;
@@ -761,6 +768,8 @@
                     const res = await fetch(`${API}?action=admin_get_users&requestor=${user.value.username}`);
                     if (res.ok) {
                         adminUsers.value = await res.json();
+                    } else {
+                        handleFetchError(res);
                     }
                 } catch(e) { alert('加载用户列表失败'); }
             };
@@ -775,6 +784,9 @@
                             newUser: adminForm.value
                         })
                     });
+                    
+                    if (handleFetchError(res)) return;
+
                     const data = await res.json();
                     if (data.success) {
                         alert('添加成功');
@@ -796,6 +808,9 @@
                             targetUsername
                         })
                     });
+                    
+                    if (handleFetchError(res)) return;
+
                     const data = await res.json();
                     if (data.success) {
                         fetchAdminUsers();
@@ -870,10 +885,11 @@
                 scrollToBottom();
 
                 try {
-                    await fetch(`${API}?action=chat_send`, {
+                    const res = await fetch(`${API}?action=chat_send`, {
                         method: 'POST', 
                         body: JSON.stringify({ user: user.value, toUsername: chatTarget.value.username, content: txt })
                     });
+                    if (handleFetchError(res)) return;
                     fetchChatHistory();
                 } catch(e) {
                     alert('发送失败');
@@ -964,15 +980,13 @@
                         
                         let q = 0.8; 
                         let dataUrl = cvs.toDataURL('image/jpeg', q); 
-                        const LIMIT = 150000; // Stricter limit (~150KB)
+                        const LIMIT = 150000; 
                         
-                        // More aggressive compression loop
                         while(dataUrl.length > LIMIT && q > 0.1) { 
                             q -= 0.1; 
                             dataUrl = cvs.toDataURL('image/jpeg', q); 
                         } 
                         
-                        // Resize if quality reduction isn't enough
                         while(dataUrl.length > LIMIT) { 
                             w *= 0.8; 
                             h *= 0.8; 
@@ -1017,6 +1031,10 @@
                             ...postForm.value
                         })
                     }); 
+                    
+                    // 添加错误拦截
+                    if (handleFetchError(res)) return;
+
                     const data = await res.json().catch(() => null); 
                     if(res.ok && data && data.success) { showPostModal.value = false; postForm.value = {content:'', game:'王者荣耀', requirement:'', images:[]}; fetchPosts(); } 
                     else { const msg = data ? (data.error || '未知错误') : `服务器响应异常`; alert(`发布失败: ${msg}`); } 
@@ -1026,7 +1044,34 @@
 
             const deletePost = async (id) => { if(confirm('确定删除这条动态吗？')) { await fetch(`${API}?action=delete_post`, {method:'POST', body:JSON.stringify({id, user:user.value})}); fetchPosts(); } };
             const toggleComments = async (p) => { p.showComments = !p.showComments; if(p.showComments && !p.loaded) { p.loadingComments = true; try { p.commentList = await (await fetch(`${API}?action=get_comments&postId=${p.id}`)).json(); p.loaded=true; } catch(e){} p.loadingComments = false; } };
-            const submitComment = async (p) => { if(!user.value) return showAuthModal.value = true; if(!p.newCommentInput) return; const txt = p.newCommentInput; p.newCommentInput=''; if(!p.commentList) p.commentList=[]; const tempCmt = {id:Date.now(), nickname:user.value.nickname, username:user.value.username, avatar:user.value.avatar, content:txt}; p.commentList.push(tempCmt); p.commentsCount = (p.commentsCount||0)+1; await fetch(`${API}?action=add_comment`, {method:'POST', body:JSON.stringify({postId:p.id, user:user.value, content:txt})}); };
+            
+            const submitComment = async (p) => { 
+                if(!user.value) return showAuthModal.value = true; 
+                if(!p.newCommentInput) return; 
+                
+                const txt = p.newCommentInput; 
+                p.newCommentInput=''; 
+                if(!p.commentList) p.commentList=[]; 
+                const tempCmt = {id:Date.now(), nickname:user.value.nickname, username:user.value.username, avatar:user.value.avatar, content:txt}; 
+                p.commentList.push(tempCmt); 
+                p.commentsCount = (p.commentsCount||0)+1; 
+                
+                try {
+                    const res = await fetch(`${API}?action=add_comment`, {
+                        method:'POST', 
+                        body:JSON.stringify({postId:p.id, user:user.value, content:txt})
+                    });
+                    if (handleFetchError(res)) {
+                        // 回滚
+                        p.commentList.pop();
+                        p.commentsCount--;
+                    }
+                } catch(e) {
+                    p.commentList.pop();
+                    p.commentsCount--;
+                }
+            };
+
             const deleteComment = async (p, cid) => { if(confirm('删除这条评论？')) { await fetch(`${API}?action=delete_comment`, {method:'POST', body:JSON.stringify({postId:p.id, commentId:cid, user:user.value})}); p.commentList = p.commentList.filter(c=>c.id!==cid); p.commentsCount--; } };
             const copyText = (text, label) => { if(navigator.clipboard) navigator.clipboard.writeText(text).then(() => alert(`已复制 ${label}: ${text}`)); else { const input = document.createElement('input'); input.value = text; document.body.appendChild(input); input.select(); document.execCommand('copy'); document.body.removeChild(input); alert(`已复制 ${label}: ${text}`); } };
             const changeFilter = g => filterGame.value = g;
