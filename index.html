@@ -606,7 +606,6 @@
             const showInboxModal = ref(false);
             const showChatModal = ref(false);
             const chatContainer = ref(null);
-            // 删除 showSlowTip
             
             const submitting = ref(false);
             const isAuthing = ref(false);
@@ -635,7 +634,7 @@
             const targetMap = { male:'找男生', female:'找女生', all:'不限' };
 
             const scrollToBottom = (force = false) => {
-                setTimeout(() => {
+                nextTick(() => {
                     const el = chatContainer.value;
                     if (el) {
                         el.scrollTo({
@@ -643,7 +642,7 @@
                             behavior: force ? 'auto' : 'smooth'
                         });
                     }
-                }, 50);
+                });
             };
 
             const checkUnread = async () => {
@@ -664,9 +663,9 @@
                 if(staticLoading) { staticLoading.style.opacity = 0; setTimeout(()=>staticLoading.remove(), 500); }
                 try { const u = localStorage.getItem('cp_user'); if(u) user.value = JSON.parse(u); } catch(e){}
                 
-                fetchPosts(); // 首次加载 (无缓存)
+                fetchPosts();
                 
-                // 保持5秒轮询，确保实时性，但不使用缓存
+                // Polling
                 dataPoller = setInterval(() => fetchPosts(true), 5000);
                 
                 if(user.value) { checkUnread(); inboxPoller = setInterval(checkUnread, 10000); }
@@ -782,26 +781,24 @@
             window.onresize = () => { windowWidth.value = window.innerWidth; updateColumns(); };
             window.onscroll = () => scrollY.value = window.scrollY;
             
-            // ★★★ 核心修复：彻底移除本地缓存，只保留实时刷新 ★★★
+            const isFetching = ref(false);
             const fetchPosts = async (isBackground = false) => { 
-                // 如果不是后台静默刷新，显示 loading
+                if (isFetching.value) return;
+                isFetching.value = true;
+
                 if (!isBackground) {
                     loading.value = true;
                 }
                 
-                // 清除旧错误
                 if (!isBackground) error.value = ''; 
                 
                 try { 
-                    // 每次都直接从服务器拉取最新数据
                     const res = await fetch(`${API}?t=${Date.now()}`); 
                     if(!res.ok) throw new Error('连接超时'); 
                     const newData = await res.json(); 
                     
                     if(Array.isArray(newData)) {
-                        // 保留 UI 状态（正在输入的评论等），但不涉及本地缓存
                         const oldMap = new Map(posts.value.map(p => [p.id, p]));
-                        
                         const mergedPosts = newData.map(newPost => {
                             const oldPost = oldMap.get(newPost.id);
                             if (oldPost) {
@@ -816,14 +813,12 @@
                             }
                             return newPost; 
                         });
-
                         posts.value = mergedPosts; 
-                        // 不再写入 localStorage
                     } 
                 } catch(e) { 
-                    // 如果是前台加载（用户主动刷新或首屏），报错才显示
                     if(!isBackground && posts.value.length === 0) error.value = e.message; 
                 } finally {
+                    isFetching.value = false;
                     if (!isBackground) loading.value = false; 
                 }
             };
@@ -846,10 +841,24 @@
                         
                         let q = 0.8; 
                         let dataUrl = cvs.toDataURL('image/jpeg', q); 
-                        const LIMIT = 200000; 
+                        const LIMIT = 150000; // Stricter limit (~150KB)
                         
-                        while(dataUrl.length > LIMIT && q > 0.2) { q-=0.1; dataUrl = cvs.toDataURL('image/jpeg', q); } 
-                        while(dataUrl.length > LIMIT) { w*=0.7; h*=0.7; cvs.width=w; cvs.height=h; ctx.drawImage(img,0,0,w,h); dataUrl = cvs.toDataURL('image/jpeg', 0.6); if(w < 200) break; } 
+                        // More aggressive compression loop
+                        while(dataUrl.length > LIMIT && q > 0.1) { 
+                            q -= 0.1; 
+                            dataUrl = cvs.toDataURL('image/jpeg', q); 
+                        } 
+                        
+                        // Resize if quality reduction isn't enough
+                        while(dataUrl.length > LIMIT) { 
+                            w *= 0.8; 
+                            h *= 0.8; 
+                            cvs.width = w; 
+                            cvs.height = h; 
+                            ctx.drawImage(img, 0, 0, w, h); 
+                            dataUrl = cvs.toDataURL('image/jpeg', 0.5); 
+                            if(w < 200) break; 
+                        } 
                         resolve(dataUrl); 
                     }; 
                     img.src = e.target.result; 
