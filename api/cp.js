@@ -27,7 +27,6 @@ const hashPassword = (pwd) => {
 const getIdentifier = (req, userBody) => {
     if (userBody && userBody.username) return `user:${userBody.username}`;
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    // 取 x-forwarded-for 的第一个 IP (真实 IP)
     return `ip:${ip.split(',')[0].trim()}`;
 };
 
@@ -47,24 +46,19 @@ export default async function handler(req, res) {
         const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
 
         // ==========================================
-        // 1. 鉴权模块
+        // 1. 鉴权模块 (注册/登录)
         // ==========================================
         
         if (action === 'register') {
             const { username, password, nickname, avatar } = body;
             
-            // ★ 修改：账号至少8位
-            if (!username || username.length < 8) {
-                return res.status(400).json({ error: '账号太短啦，至少要8位字符哦' });
-            }
-            if (!password || password.length < 6) {
-                return res.status(400).json({ error: '密码太简单啦，至少设置6位吧' });
-            }
-            if (!nickname) return res.status(400).json({ error: '取个好听的名字吧' });
+            if (!username || username.length < 8) return res.status(400).json({ error: '账号至少要8位哦' });
+            if (!password || password.length < 6) return res.status(400).json({ error: '密码至少设置6位' });
+            if (!nickname) return res.status(400).json({ error: '昵称不能为空' });
 
             const userRef = db.collection('cp_users').doc(username);
             const userDoc = await userRef.get();
-            if (userDoc.exists) return res.status(400).json({ error: '这个账号名已经被别人抢先啦' });
+            if (userDoc.exists) return res.status(400).json({ error: '账号已存在' });
 
             const userData = {
                 username,
@@ -85,11 +79,11 @@ export default async function handler(req, res) {
             const userRef = db.collection('cp_users').doc(username);
             const userDoc = await userRef.get();
             
-            if (!userDoc.exists) return res.status(400).json({ error: '账号不存在，要不先注册一个？' });
+            if (!userDoc.exists) return res.status(400).json({ error: '账号不存在' });
             
             const userData = userDoc.data();
             if (userData.password !== hashPassword(password)) {
-                return res.status(400).json({ error: '密码不对哦' });
+                return res.status(400).json({ error: '密码错误' });
             }
             userData.isAdmin = (userData.username === 'admin');
             delete userData.password;
@@ -106,9 +100,6 @@ export default async function handler(req, res) {
                 .limit(50)
                 .get();
             
-            // 获取当前请求者的 ID，用于判断是否点赞过
-            // 注意：GET 请求没有 body，难以获取 user，这里主要靠 IP 判断
-            // 或者前端获取后自己对比 likedIds
             const posts = [];
             snapshot.forEach(doc => {
                 const data = doc.data();
@@ -116,16 +107,21 @@ export default async function handler(req, res) {
                 let timeStr = "刚刚";
                 if (data.timestamp && data.timestamp._seconds) {
                     const date = new Date(data.timestamp._seconds * 1000);
-                    timeStr = date.toLocaleDateString('zh-CN', {month: '2-digit', day:'2-digit'}) + " " + date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
+                    // 简单的日期格式化
+                    const now = new Date();
+                    if (now.toDateString() === date.toDateString()) {
+                        timeStr = date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
+                    } else {
+                        timeStr = date.toLocaleDateString('zh-CN', {month: '2-digit', day:'2-digit'});
+                    }
                 }
                 
-                // 为了节省带宽，likedIds 数组不一定非要全返回，但为了判断状态，先返回
-                // 如果数组太大，可以考虑只返回 count
                 posts.push({ 
                     id: doc.id, 
                     ...data, 
                     timeStr,
-                    likedIds: data.likedIds || [] // 确保有这个字段
+                    // 返回 likedIds 供前端判断 (注意数据量)
+                    likedIds: data.likedIds || [] 
                 });
             });
             return res.json(posts);
@@ -145,7 +141,7 @@ export default async function handler(req, res) {
                 requirement: requirement || '',
                 images: images || [], 
                 likes: 0,
-                likedIds: [], // ★ 新增：存储点赞人的 ID 数组
+                likedIds: [], 
                 commentsCount: 0,
                 timestamp: admin.firestore.FieldValue.serverTimestamp()
             });
@@ -162,14 +158,14 @@ export default async function handler(req, res) {
         }
 
         // ==========================================
-        // 3. 互动模块 (点赞/评论)
+        // 3. 互动模块
         // ==========================================
 
-        // ★ 重构：点赞/取消点赞 (Toggle)
+        // ★ 核心修复：严格的 Toggle 逻辑
         if (req.method === 'POST' && action === 'like') {
             const { id, user } = body;
             const docRef = db.collection('cp_posts').doc(id);
-            const identifier = getIdentifier(req, user); // 获取 IP 或 用户名
+            const identifier = getIdentifier(req, user);
 
             await db.runTransaction(async (t) => {
                 const doc = await t.get(docRef);
@@ -179,27 +175,30 @@ export default async function handler(req, res) {
                 const likedIds = data.likedIds || [];
                 const index = likedIds.indexOf(identifier);
 
+                let newLikes = data.likes || 0;
+
                 if (index > -1) {
                     // 已点赞 -> 取消
                     likedIds.splice(index, 1);
-                    t.update(docRef, {
-                        likedIds: likedIds,
-                        likes: Math.max(0, (data.likes || 1) - 1)
-                    });
+                    newLikes = Math.max(0, newLikes - 1);
                 } else {
                     // 未点赞 -> 添加
-                    // 限制数组长度，防止文档过大 (比如只存最近500个，或者不限制看情况)
-                    if (likedIds.length > 1000) likedIds.shift(); 
+                    // 防止数组无限膨胀，保留最近 2000 个赞的人
+                    if (likedIds.length > 2000) likedIds.shift(); 
                     likedIds.push(identifier);
-                    t.update(docRef, {
-                        likedIds: likedIds,
-                        likes: (data.likes || 0) + 1
-                    });
+                    newLikes = newLikes + 1;
                 }
+
+                t.update(docRef, {
+                    likedIds: likedIds,
+                    likes: newLikes
+                });
             });
-            return res.json({ success: true, identifier }); // 返回 ID 供前端调试
+            
+            return res.json({ success: true, identifier });
         }
 
+        // 获取评论
         if (req.method === 'GET' && action === 'get_comments') {
             const { postId } = req.query;
             const snapshot = await db.collection('cp_posts').doc(postId).collection('comments')
@@ -209,6 +208,7 @@ export default async function handler(req, res) {
             return res.json(comments);
         }
 
+        // 发送评论
         if (req.method === 'POST' && action === 'add_comment') {
             const { postId, user, content } = body;
             if (!user) return res.status(401).json({ error: '请先登录' });
@@ -230,7 +230,7 @@ export default async function handler(req, res) {
             return res.json({ success: true });
         }
 
-        // ★ 新增：管理员删除评论
+        // 删除评论
         if (req.method === 'POST' && action === 'delete_comment') {
             const { postId, commentId, user } = body;
             if (!user || user.username !== 'admin') {
@@ -242,7 +242,6 @@ export default async function handler(req, res) {
 
             await db.runTransaction(async (t) => {
                 t.delete(commentRef);
-                // 评论数 -1
                 t.update(postRef, {
                     commentsCount: admin.firestore.FieldValue.increment(-1)
                 });
