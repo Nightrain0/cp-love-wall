@@ -22,6 +22,8 @@ const getDb = () => {
 
 const hashPassword = (pwd) => Buffer.from(pwd + "cpdd_salt").toString('base64');
 const getIdentifier = (req, body) => body?.username ? 'user:'+body.username : 'ip:'+(req.headers['x-forwarded-for']||'unknown').split(',')[0];
+// 生成唯一的聊天室ID (按字母顺序排序，保证 A和B无论谁发，都在同一个房间)
+const getChatId = (u1, u2) => [u1, u2].sort().join('_');
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -37,21 +39,137 @@ export default async function handler(req, res) {
         const { action } = req.query;
         const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
 
-        // --- 鉴权 ---
+        // ==========================================
+        // 1. 社交增强模块 (新功能)
+        // ==========================================
+
+        // 获取他人公开资料
+        if (req.method === 'GET' && action === 'get_user_profile') {
+            const targetUsername = req.query.username;
+            if (!targetUsername) return res.status(400).json({ error: '缺参数' });
+            
+            const doc = await db.collection('cp_users').doc(targetUsername).get();
+            if (!doc.exists) return res.status(404).json({ error: '用户不存在' });
+            
+            const d = doc.data();
+            // 只返回公开信息，不返回密码
+            const profile = {
+                username: d.username,
+                nickname: d.nickname,
+                avatar: d.avatar,
+                gender: d.gender || 'secret',
+                target: d.target || 'all',
+                qq: d.qq || '',
+                wx: d.wx || '',
+                createdAt: d.createdAt
+            };
+            return res.json(profile);
+        }
+
+        // 发送私信
+        if (req.method === 'POST' && action === 'chat_send') {
+            const { user, toUsername, content } = body;
+            if (!user) return res.status(401).json({ error: '请登录' });
+            if (!content) return res.status(400).json({ error: '内容为空' });
+
+            const chatId = getChatId(user.username, toUsername);
+            const chatRef = db.collection('cp_chats').doc(chatId);
+            const msgRef = chatRef.collection('messages').doc();
+            const now = admin.firestore.FieldValue.serverTimestamp();
+
+            await db.runTransaction(async (t) => {
+                // 1. 更新聊天室概览 (用于列表展示)
+                const chatDoc = await t.get(chatRef);
+                if (!chatDoc.exists) {
+                    t.set(chatRef, {
+                        participants: [user.username, toUsername],
+                        lastMsg: content,
+                        lastSender: user.username,
+                        updatedAt: now
+                    });
+                } else {
+                    t.update(chatRef, {
+                        lastMsg: content,
+                        lastSender: user.username,
+                        updatedAt: now
+                    });
+                }
+                // 2. 写入具体消息
+                t.set(msgRef, {
+                    sender: user.username,
+                    content: content,
+                    timestamp: now
+                });
+            });
+            return res.json({ success: true });
+        }
+
+        // 获取私信会话列表 (收件箱)
+        if (req.method === 'GET' && action === 'chat_inbox') {
+            const myUsername = req.query.username;
+            if (!myUsername) return res.status(400).json({ error: '缺参数' });
+
+            // 查我参与的所有对话
+            const snap = await db.collection('cp_chats')
+                .where('participants', 'array-contains', myUsername)
+                .orderBy('updatedAt', 'desc')
+                .limit(20)
+                .get();
+            
+            const chats = [];
+            for (const doc of snap.docs) {
+                const d = doc.data();
+                const otherUser = d.participants.find(p => p !== myUsername);
+                
+                // 简单获取对方头像昵称 (实际项目建议把头像昵称冗余存到 chatRef 里，减少查询)
+                let otherInfo = { nickname: otherUser, avatar: '' };
+                const uDoc = await db.collection('cp_users').doc(otherUser).get();
+                if (uDoc.exists) otherInfo = uDoc.data();
+
+                chats.push({
+                    chatId: doc.id,
+                    otherUsername: otherUser,
+                    otherNickname: otherInfo.nickname,
+                    otherAvatar: otherInfo.avatar,
+                    lastMsg: d.lastMsg,
+                    updatedAt: d.updatedAt
+                });
+            }
+            return res.json(chats);
+        }
+
+        // 获取具体对话详情
+        if (req.method === 'GET' && action === 'chat_history') {
+            const { u1, u2 } = req.query;
+            const chatId = getChatId(u1, u2);
+            
+            const snap = await db.collection('cp_chats').doc(chatId).collection('messages')
+                .orderBy('timestamp', 'asc') // 旧到新
+                .limit(50)
+                .get();
+            
+            const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            return res.json(msgs);
+        }
+
+        // ==========================================
+        // 2. 鉴权模块
+        // ==========================================
+        
         if (action === 'register') {
             const { username, password, nickname, avatar } = body;
-            if (!username || (username !== 'admin' && username.length < 8)) return res.status(400).json({ error: '账号需≥8位' });
+            // admin 不受限，其他人必须 >= 8
+            if (username !== 'admin' && (!username || username.length < 8)) return res.status(400).json({ error: '账号需≥8位' });
             if (!password || password.length < 6) return res.status(400).json({ error: '密码需≥6位' });
             if (!nickname) return res.status(400).json({ error: '请输入昵称' });
 
             const userRef = db.collection('cp_users').doc(username);
             if ((await userRef.get()).exists) return res.status(400).json({ error: '账号已存在' });
 
-            // 初始资料
             const u = { 
                 username, password: hashPassword(password), nickname, avatar: avatar||'', 
                 isAdmin: username==='admin', 
-                gender: 'secret', target: 'all', qq: '', wx: '', // 默认值
+                gender: 'secret', target: 'all', qq: '', wx: '',
                 createdAt: new Date() 
             };
             await userRef.set(u);
@@ -64,51 +182,44 @@ export default async function handler(req, res) {
             if (!doc.exists) return res.status(400).json({ error: '账号不存在' });
             
             const u = doc.data();
-            // 锁定逻辑
             const now = Date.now();
             if (u.lockUntil && u.lockUntil.toMillis() > now) return res.status(403).json({ error: '账号已锁定，请稍后再试' });
 
             if (u.password !== hashPassword(body.password)) {
                 let fails = (u.fails || 0) + 1;
                 let updates = { fails };
-                if (fails >= 3) updates.lockUntil = admin.firestore.Timestamp.fromMillis(now + 30*60*1000); // 锁30分钟
+                if (fails >= 3) updates.lockUntil = admin.firestore.Timestamp.fromMillis(now + 30*60*1000);
                 await db.collection('cp_users').doc(body.username).update(updates);
                 return res.status(400).json({ error: `密码错误 (剩余${3-fails}次)` });
             }
             
-            // 登录成功清空失败记录
             if(u.fails) await db.collection('cp_users').doc(body.username).update({ fails: 0, lockUntil: null });
-
             u.isAdmin = (u.username === 'admin');
             delete u.password;
             return res.json({ success: true, user: u });
         }
 
-        // ★ 新增：更新个人资料
         if (req.method === 'POST' && action === 'update_profile') {
             if (!body.user) return res.status(401).json({ error: '请登录' });
-            // 简单的身份校验：只能改自己的
             if (body.user.username !== body.username) return res.status(403).json({ error: '非法操作' });
 
             const updates = {
-                nickname: body.nickname,
-                avatar: body.avatar,
-                gender: body.gender || 'secret',
-                target: body.target || 'all',
-                qq: body.qq || '',
-                wx: body.wx || ''
+                nickname: body.nickname, avatar: body.avatar,
+                gender: body.gender || 'secret', target: body.target || 'all',
+                qq: body.qq || '', wx: body.wx || ''
             };
-
             await db.collection('cp_users').doc(body.username).update(updates);
             
-            // 返回最新资料
             const newDoc = await db.collection('cp_users').doc(body.username).get();
             const u = newDoc.data();
             delete u.password;
             return res.json({ success: true, user: u });
         }
 
-        // --- 帖子 ---
+        // ==========================================
+        // 3. 帖子模块
+        // ==========================================
+
         if (req.method === 'GET' && !action) {
             try {
                 const snap = await db.collection('cp_posts').orderBy('timestamp', 'desc').limit(60).get();
@@ -128,26 +239,11 @@ export default async function handler(req, res) {
 
         if (req.method === 'POST' && action === 'create_post') {
             if (!body.user) return res.status(401).json({ error: '请登录' });
-            
-            // ★ 发帖时带上用户当前的资料快照
             await db.collection('cp_posts').add({
-                nickname: body.user.nickname, 
-                username: body.user.username, 
-                avatar: body.user.avatar,
-                // 存入个人资料字段
-                gender: body.user.gender || 'secret',
-                target: body.user.target || 'all',
-                qq: body.user.qq || '',
-                wx: body.user.wx || '',
-                
-                game: body.game, 
-                desc: body.content, 
-                requirement: body.requirement, 
-                images: body.images,
-                likes: 0, 
-                likedIds: [], 
-                commentsCount: 0, 
-                timestamp: admin.firestore.FieldValue.serverTimestamp()
+                nickname: body.user.nickname, username: body.user.username, avatar: body.user.avatar,
+                gender: body.user.gender, target: body.user.target, qq: body.user.qq, wx: body.user.wx,
+                game: body.game, desc: body.content, requirement: body.requirement, images: body.images,
+                likes: 0, likedIds: [], commentsCount: 0, timestamp: admin.firestore.FieldValue.serverTimestamp()
             });
             return res.json({ success: true });
         }
@@ -162,7 +258,6 @@ export default async function handler(req, res) {
             return res.json({ success: true });
         }
 
-        // 点赞
         if (req.method === 'POST' && action === 'like') {
             const ref = db.collection('cp_posts').doc(body.id);
             const uid = getIdentifier(req, body.user);
@@ -172,23 +267,17 @@ export default async function handler(req, res) {
                 const d = doc.data();
                 const ids = d.likedIds || [];
                 const idx = ids.indexOf(uid);
-                if (idx > -1) {
-                    ids.splice(idx, 1);
-                    t.update(ref, { likedIds: ids, likes: Math.max(0, (d.likes||0)-1) });
-                } else {
-                    if(ids.length > 2000) ids.shift();
-                    ids.push(uid);
-                    t.update(ref, { likedIds: ids, likes: (d.likes||0)+1 });
-                }
+                if (idx > -1) { ids.splice(idx, 1); t.update(ref, { likedIds: ids, likes: Math.max(0, (d.likes||0)-1) }); } 
+                else { if(ids.length > 2000) ids.shift(); ids.push(uid); t.update(ref, { likedIds: ids, likes: (d.likes||0)+1 }); }
             });
             return res.json({ success: true });
         }
 
-        // 评论模块 (略微简化，逻辑不变)
         if (req.method === 'GET' && action === 'get_comments') {
             const snap = await db.collection('cp_posts').doc(req.query.postId).collection('comments').orderBy('timestamp', 'asc').get();
             return res.json(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         }
+
         if (req.method === 'POST' && action === 'add_comment') {
             const ref = db.collection('cp_posts').doc(body.postId);
             await db.runTransaction(async t => {
@@ -200,6 +289,7 @@ export default async function handler(req, res) {
             });
             return res.json({ success: true });
         }
+
         if (req.method === 'POST' && action === 'delete_comment') {
             const ref = db.collection('cp_posts').doc(body.postId);
             const cmtRef = ref.collection('comments').doc(body.commentId);
