@@ -36,42 +36,41 @@ export default async function handler(req, res) {
 
         // --- 管理员专属功能 ---
         
-        // 1. 获取用户列表
         if (req.method === 'GET' && action === 'admin_get_users') {
             if (req.query.requestor !== 'admin') return res.status(403).json({ error: '无权访问' });
-            // 获取最近注册的 100 个用户
             const snap = await db.collection('cp_users').orderBy('createdAt', 'desc').limit(100).get();
             const users = snap.docs.map(d => {
                 const u = d.data();
-                delete u.password; // 不返回密码
+                delete u.password; 
                 return u;
             });
             return res.json(users);
         }
 
-        // 2. 管理员删除用户
         if (req.method === 'POST' && action === 'admin_delete_user') {
-            if (body.user.username !== 'admin') return res.status(403).json({ error: '无权访问' });
+            if (body.user?.username !== 'admin') return res.status(403).json({ error: '无权访问' });
             const targetUser = body.targetUsername;
-            if (targetUser === 'admin') return res.status(400).json({ error: '不能删除管理员自身' });
+            if (!targetUser || targetUser === 'admin') return res.status(400).json({ error: '操作非法' });
             
             await db.collection('cp_users').doc(targetUser).delete();
+            // 可选：这里可以顺便删除该用户的帖子，但为了性能暂不遍历删除
             return res.json({ success: true });
         }
 
-        // 3. 管理员手动添加用户
         if (req.method === 'POST' && action === 'admin_add_user') {
-            if (body.user.username !== 'admin') return res.status(403).json({ error: '无权访问' });
+            if (body.user?.username !== 'admin') return res.status(403).json({ error: '无权访问' });
             
-            const { username, password, nickname, gender, target } = body.newUser;
-            if (!username || username.length < 4) return res.status(400).json({ error: '账号太短' }); // 管理员创建可以放宽限制
+            const newUser = body.newUser || {};
+            const { username, password, nickname, gender, target } = newUser;
+            
+            if (!username || username.length < 4) return res.status(400).json({ error: '账号无效' });
             
             const docRef = db.collection('cp_users').doc(username);
             if ((await docRef.get()).exists) return res.status(400).json({ error: '账号已存在' });
 
             const u = { 
                 username, 
-                password: hashPassword(password || '123456'), // 默认密码
+                password: hashPassword(password || '123456'), 
                 nickname: nickname || '新用户', 
                 avatar: '', 
                 isAdmin: false, 
@@ -99,7 +98,7 @@ export default async function handler(req, res) {
             if (!user || !content) return res.status(400).json({ error: '参数错误' });
             
             if (!(await validateUser(user.username))) {
-                return res.status(401).json({ error: '账号异常，请重新登录' });
+                return res.status(401).json({ error: '账号异常' });
             }
 
             const chatId = getChatId(user.username, toUsername);
@@ -137,9 +136,12 @@ export default async function handler(req, res) {
                 if (d.hiddenFor && d.hiddenFor.includes(myUsername)) continue;
 
                 const otherUser = d.participants.find(p => p !== myUsername);
-                let otherInfo = { nickname: otherUser, avatar: '' };
-                const uDoc = await db.collection('cp_users').doc(otherUser).get();
-                if (uDoc.exists) otherInfo = uDoc.data();
+                // 防御性编程：如果对方用户已注销，可能查不到
+                let otherInfo = { nickname: '未知用户', avatar: '' };
+                try {
+                    const uDoc = await db.collection('cp_users').doc(otherUser).get();
+                    if (uDoc.exists) otherInfo = uDoc.data();
+                } catch(e) {}
 
                 chats.push({
                     chatId: d.id,
@@ -267,7 +269,7 @@ export default async function handler(req, res) {
             if (!body.user) return res.status(400).json({ error: '用户未登录' });
             
             if (!(await validateUser(body.user.username))) {
-                return res.status(401).json({ error: '账号不存在或已被删除' });
+                return res.status(401).json({ error: '账号不存在' });
             }
 
             await db.collection('cp_posts').add({
