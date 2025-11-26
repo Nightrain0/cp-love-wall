@@ -697,8 +697,6 @@
             const chatInput = ref('');
             const totalUnread = ref(0);
             let chatPoller = null;
-            // let inboxPoller = null; // 优化：移除私信自动轮询
-            // let dataPoller = null; // 优化：移除列表自动轮询
 
             const games = ['全部', '王者荣耀', '原神', '光遇', '英雄联盟', '和平精英', '蛋仔派对', '无畏契约', '崩坏:星穹铁道', '其他'];
             const gameIcons = {
@@ -781,12 +779,8 @@
                 try { const u = localStorage.getItem('cp_user'); if(u) user.value = JSON.parse(u); } catch(e){}
                 
                 fetchPosts();
-                // 优化：移除自动轮询，只在初次加载读取
-                // dataPoller = setInterval(() => fetchPosts(true), 5000);
                 if(user.value) { 
                     checkUnread(); 
-                    // 优化：移除私信自动轮询
-                    // inboxPoller = setInterval(checkUnread, 10000); 
                 }
             });
 
@@ -1097,7 +1091,6 @@
             const deletePost = async (id) => { if(confirm('确定删除这条动态吗？')) { await fetch(`${API}?action=delete_post`, {method:'POST', body:JSON.stringify({id, user:user.value})}); fetchPosts(); showToast('已删除'); } };
             const toggleComments = async (p) => { p.showComments = !p.showComments; if(p.showComments && !p.loaded) { p.loadingComments = true; try { p.commentList = await (await fetch(`${API}?action=get_comments&postId=${p.id}`)).json(); p.loaded=true; } catch(e){} p.loadingComments = false; } };
             
-            // 优化：提交评论，同步真实 ID
             const submitComment = async (p) => { 
                 if(!user.value) return showAuthModal.value = true; 
                 if(!p.newCommentInput) return; 
@@ -1119,7 +1112,6 @@
                         p.commentList = p.commentList.filter(c => c.id !== tempId);
                         p.commentsCount--; 
                     } else if (data.success && data.id) {
-                        // 关键：把后端生成的真实 ID 替换掉前端的临时时间戳 ID
                         const target = p.commentList.find(c => c.id === tempId);
                         if (target) target.id = data.id;
                     }
@@ -1129,25 +1121,30 @@
                 }
             };
 
-            // 优化：删除评论，乐观更新
+            // 优化：删除评论，等待后端确认
             const deleteComment = async (p, cid) => { 
                 if(!confirm('删除这条评论？')) return;
-
-                const prevList = [...p.commentList];
-                p.commentList = p.commentList.filter(c => c.id !== cid);
-                p.commentsCount--;
                 
                 try {
                     const res = await fetch(`${API}?action=delete_comment`, {
                         method:'POST', 
                         body:JSON.stringify({postId:p.id, commentId:cid, user:user.value})
                     });
-                    if (handleFetchError(res)) {
-                         p.commentList = prevList; p.commentsCount++;
+                    
+                    if (handleFetchError(res)) return;
+
+                    const data = await res.json();
+                    
+                    if (res.ok && data.success) {
+                        // 只有后端返回成功，才更新界面
+                        p.commentList = p.commentList.filter(c => c.id !== cid);
+                        p.commentsCount--;
+                        showToast('已删除');
+                    } else {
+                        showToast(data.error || '删除失败，评论不存在或无权删除', 'error');
                     }
                 } catch(e) { 
-                    p.commentList = prevList; p.commentsCount++;
-                    showToast('删除失败，请重试', 'error');
+                    showToast('网络错误，删除失败', 'error');
                 } 
             };
 
