@@ -327,13 +327,23 @@ export default async function handler(req, res) {
             return res.json({ success: true, id: newCommentId });
         }
 
+        // --- 优化：删除评论严格检查 ---
         if (req.method === 'POST' && action === 'delete_comment') {
             const ref = db.collection('cp_posts').doc(body.postId);
             const cmtRef = ref.collection('comments').doc(body.commentId);
             const cmt = await cmtRef.get();
-            if(cmt.exists && (body.user.username==='admin' || body.user.username===cmt.data().username)) {
-                await cmtRef.delete(); await ref.update({ commentsCount: admin.firestore.FieldValue.increment(-1) });
+            
+            if (!cmt.exists) {
+                return res.status(404).json({ error: '评论不存在或已删除' });
             }
+
+            if (body.user.username !== 'admin' && body.user.username !== cmt.data().username) {
+                return res.status(403).json({ error: '无权删除' });
+            }
+
+            await cmtRef.delete(); 
+            await ref.update({ commentsCount: admin.firestore.FieldValue.increment(-1) });
+            
             return res.json({ success: true });
         }
         
