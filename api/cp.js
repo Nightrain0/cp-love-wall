@@ -53,7 +53,6 @@ export default async function handler(req, res) {
             if (!targetUser || targetUser === 'admin') return res.status(400).json({ error: '操作非法' });
             
             await db.collection('cp_users').doc(targetUser).delete();
-            // 可选：这里可以顺便删除该用户的帖子，但为了性能暂不遍历删除
             return res.json({ success: true });
         }
 
@@ -136,7 +135,6 @@ export default async function handler(req, res) {
                 if (d.hiddenFor && d.hiddenFor.includes(myUsername)) continue;
 
                 const otherUser = d.participants.find(p => p !== myUsername);
-                // 防御性编程：如果对方用户已注销，可能查不到
                 let otherInfo = { nickname: '未知用户', avatar: '' };
                 try {
                     const uDoc = await db.collection('cp_users').doc(otherUser).get();
@@ -307,20 +305,26 @@ export default async function handler(req, res) {
             return res.json({ success: true });
         }
 
+        // --- 优化：返回评论 ID ---
         if (req.method === 'POST' && action === 'add_comment') {
             if (!(await validateUser(body.user.username))) {
                 return res.status(401).json({ error: '账号异常' });
             }
 
             const ref = db.collection('cp_posts').doc(body.postId);
+            // 1. 先生成 ID
+            const newCommentRef = ref.collection('comments').doc();
+            const newCommentId = newCommentRef.id;
+
             await db.runTransaction(async t => {
-                t.set(ref.collection('comments').doc(), {
+                t.set(newCommentRef, {
                     nickname: body.user.nickname, username: body.user.username, avatar: body.user.avatar,
                     content: body.content, timestamp: admin.firestore.FieldValue.serverTimestamp()
                 });
                 t.update(ref, { commentsCount: admin.firestore.FieldValue.increment(1) });
             });
-            return res.json({ success: true });
+            // 2. 返回 ID
+            return res.json({ success: true, id: newCommentId });
         }
 
         if (req.method === 'POST' && action === 'delete_comment') {
