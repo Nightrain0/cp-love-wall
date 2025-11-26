@@ -697,8 +697,8 @@
             const chatInput = ref('');
             const totalUnread = ref(0);
             let chatPoller = null;
-            let inboxPoller = null;
-            let dataPoller = null;
+            // let inboxPoller = null; // 优化：移除私信自动轮询
+            // let dataPoller = null; // 优化：移除列表自动轮询
 
             const games = ['全部', '王者荣耀', '原神', '光遇', '英雄联盟', '和平精英', '蛋仔派对', '无畏契约', '崩坏:星穹铁道', '其他'];
             const gameIcons = {
@@ -781,19 +781,24 @@
                 try { const u = localStorage.getItem('cp_user'); if(u) user.value = JSON.parse(u); } catch(e){}
                 
                 fetchPosts();
-                dataPoller = setInterval(() => fetchPosts(true), 5000);
-                if(user.value) { checkUnread(); inboxPoller = setInterval(checkUnread, 10000); }
+                // 优化：移除自动轮询，只在初次加载读取
+                // dataPoller = setInterval(() => fetchPosts(true), 5000);
+                if(user.value) { 
+                    checkUnread(); 
+                    // 优化：移除私信自动轮询
+                    // inboxPoller = setInterval(checkUnread, 10000); 
+                }
             });
 
+            // 监听用户登录状态，登录时检查私信
             watch(user, (u) => {
-                if (u && !inboxPoller) inboxPoller = setInterval(checkUnread, 10000);
-                else if (!u && inboxPoller) { clearInterval(inboxPoller); inboxPoller = null; }
+                if (u) checkUnread();
             });
 
             const openInbox = async () => {
                 if (!user.value) return showAuthModal.value = true;
                 showInboxModal.value = true;
-                checkUnread();
+                checkUnread(); // 打开时手动刷新一次
             };
 
             const openAdminPanel = () => {
@@ -880,6 +885,7 @@
 
                 fetchChatHistory();
                 if (chatPoller) clearInterval(chatPoller);
+                // 聊天界面还是需要轮询的，否则无法实时收到消息，这里保留 3秒一次
                 chatPoller = setInterval(fetchChatHistory, 3000);
             };
 
@@ -1091,6 +1097,7 @@
             const deletePost = async (id) => { if(confirm('确定删除这条动态吗？')) { await fetch(`${API}?action=delete_post`, {method:'POST', body:JSON.stringify({id, user:user.value})}); fetchPosts(); showToast('已删除'); } };
             const toggleComments = async (p) => { p.showComments = !p.showComments; if(p.showComments && !p.loaded) { p.loadingComments = true; try { p.commentList = await (await fetch(`${API}?action=get_comments&postId=${p.id}`)).json(); p.loaded=true; } catch(e){} p.loadingComments = false; } };
             
+            // 优化：提交评论，同步真实 ID
             const submitComment = async (p) => { 
                 if(!user.value) return showAuthModal.value = true; 
                 if(!p.newCommentInput) return; 
@@ -1098,17 +1105,52 @@
                 const txt = p.newCommentInput; 
                 p.newCommentInput=''; 
                 if(!p.commentList) p.commentList=[]; 
-                const tempCmt = {id:Date.now(), nickname:user.value.nickname, username:user.value.username, avatar:user.value.avatar, content:txt}; 
+                
+                const tempId = Date.now();
+                const tempCmt = {id:tempId, nickname:user.value.nickname, username:user.value.username, avatar:user.value.avatar, content:txt}; 
                 p.commentList.push(tempCmt); 
                 p.commentsCount = (p.commentsCount||0)+1; 
                 
                 try {
                     const res = await fetch(`${API}?action=add_comment`, { method:'POST', body:JSON.stringify({postId:p.id, user:user.value, content:txt}) });
-                    if (handleFetchError(res)) { p.commentList.pop(); p.commentsCount--; }
-                } catch(e) { p.commentList.pop(); p.commentsCount--; }
+                    const data = await res.json();
+                    
+                    if (handleFetchError(res)) { 
+                        p.commentList = p.commentList.filter(c => c.id !== tempId);
+                        p.commentsCount--; 
+                    } else if (data.success && data.id) {
+                        // 关键：把后端生成的真实 ID 替换掉前端的临时时间戳 ID
+                        const target = p.commentList.find(c => c.id === tempId);
+                        if (target) target.id = data.id;
+                    }
+                } catch(e) { 
+                    p.commentList = p.commentList.filter(c => c.id !== tempId);
+                    p.commentsCount--; 
+                }
             };
 
-            const deleteComment = async (p, cid) => { if(confirm('删除这条评论？')) { await fetch(`${API}?action=delete_comment`, {method:'POST', body:JSON.stringify({postId:p.id, commentId:cid, user:user.value})}); p.commentList = p.commentList.filter(c=>c.id!==cid); p.commentsCount--; } };
+            // 优化：删除评论，乐观更新
+            const deleteComment = async (p, cid) => { 
+                if(!confirm('删除这条评论？')) return;
+
+                const prevList = [...p.commentList];
+                p.commentList = p.commentList.filter(c => c.id !== cid);
+                p.commentsCount--;
+                
+                try {
+                    const res = await fetch(`${API}?action=delete_comment`, {
+                        method:'POST', 
+                        body:JSON.stringify({postId:p.id, commentId:cid, user:user.value})
+                    });
+                    if (handleFetchError(res)) {
+                         p.commentList = prevList; p.commentsCount++;
+                    }
+                } catch(e) { 
+                    p.commentList = prevList; p.commentsCount++;
+                    showToast('删除失败，请重试', 'error');
+                } 
+            };
+
             const copyText = (text, label) => { 
                 if(navigator.clipboard) navigator.clipboard.writeText(text).then(() => showToast(`已复制 ${label}`)); 
                 else { const input = document.createElement('input'); input.value = text; document.body.appendChild(input); input.select(); document.execCommand('copy'); document.body.removeChild(input); showToast(`已复制 ${label}`); } 
@@ -1117,7 +1159,7 @@
             const logout = () => { user.value=null; localStorage.removeItem('cp_user'); showProfileModal.value=false; };
             const checkAuthAndPost = () => user.value ? showPostModal.value = true : showAuthModal.value = true;
             const removeImage = i => postForm.value.images.splice(i,1);
-            // 修复：图片预览点击前检查数据
+            
             const previewImage = (l,i) => {
                 if (l && l.length > 0 && l[i]) {
                     preview.value = {show:true, list:l, idx:i};
